@@ -44,3 +44,11 @@
 .transactions-search input{width:100%;min-width:0;height:38px;border:0;outline:0;background:transparent;color:#1f2937;font:12px var(--font-ui)}
 .transactions-search button{display:grid;width:25px;height:25px;flex:0 0 25px;place-items:center;border:0;border-radius:5px;background:#f1f5f9;color:#475569;font-size:17px;cursor:pointer}
 @media(max-width:600px){.transactions-toolbar{padding:12px}.transactions-search{max-width:none}.transactions-heading{align-items:flex-start}}
+
+.cash-shortcuts-group{margin-top:14px}
+.cash-shortcuts-label{margin:0 0 7px;color:#64748b;font-size:10px;font-weight:700;letter-spacing:.04em}
+.cash-shortcuts{display:flex;flex-wrap:wrap;gap:7px}
+.cash-shortcuts button{min-height:34px;padding:7px 10px;border:1px solid #dbe2ea;border-radius:7px;background:#fff;color:#334155;font:600 11px var(--font-ui);cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}
+.cash-shortcuts button:hover{border-color:#94a3b8;background:#f8fafc}
+.cash-shortcuts button.is-selected{border-color:#101b2f;background:#101b2f;color:#fff}
+.cash-shortcuts button:focus-visible{outline:2px solid #64748b;outline-offset:2px}
