@@ -30,6 +30,25 @@ describe('calculateFiscalTaxLine', () => {
     });
   });
 
+  it('applies a discount before extracting tax from a tax-inclusive price', () => {
+    expect(calculateFiscalTaxLine({
+      quantity: 1, unitPriceCentavos: 11_200, discountCentavos: 1_200,
+      taxRateBasisPoints: 1_200, priceIncludesTax: true,
+    })).toEqual({
+      grossBeforeDiscountCentavos: 11_200, discountCentavos: 1_200,
+      taxableBaseCentavos: 8_929, taxCentavos: 1_071, totalCentavos: 10_000,
+    });
+  });
+
+  it('rejects fractional rates and tax calculations that exceed safe integer precision', () => {
+    expect(() => calculateFiscalTaxLine({
+      quantity: 1, unitPriceCentavos: 100, taxRateBasisPoints: 12.5, priceIncludesTax: false,
+    })).toThrow();
+    expect(() => calculateFiscalTaxLine({
+      quantity: 1, unitPriceCentavos: Number.MAX_SAFE_INTEGER, taxRateBasisPoints: 1, priceIncludesTax: true,
+    })).toThrow();
+  });
+
   it('supports zero-rated/no-tax lines only when the caller supplies a zero rate', () => {
     expect(calculateFiscalTaxLine({
       quantity: 1, unitPriceCentavos: 1_999, taxRateBasisPoints: 0, priceIncludesTax: false,
