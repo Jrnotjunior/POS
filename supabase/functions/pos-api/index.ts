@@ -317,7 +317,14 @@ Deno.serve(async(req:Request)=>{
       const rules=body.rules;
       const effectiveFrom=typeof body.effectiveFrom==="string"?body.effectiveFrom.trim():"";
       const effectiveUntil=typeof body.effectiveUntil==="string"&&body.effectiveUntil.trim()?body.effectiveUntil.trim():null;
-      const isoDate=(v:string)=>/^\d{4}-\d{2}-\d{2}T/.test(v)&&Number.isFinite(Date.parse(v));
+      const isoDate=(v:string)=>{
+        const match=v.match(/^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$/);
+        if(!match||!Number.isFinite(Date.parse(v)))return false;
+        const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+        const calendarDate=new Date(Date.UTC(year,month-1,day));
+        return calendarDate.getUTCFullYear()===year&&calendarDate.getUTCMonth()===month-1&&calendarDate.getUTCDate()===day
+          &&month>=1&&month<=12&&day>=1;
+      };
       if(policyName.length<2||policyName.length>120||!Array.isArray(rules)||rules.length<1||rules.length>50
         ||(effectiveFrom&&!isoDate(effectiveFrom))||(effectiveUntil!==null&&!isoDate(effectiveUntil))
         ||(effectiveFrom&&effectiveUntil&&Date.parse(effectiveUntil)<=Date.parse(effectiveFrom))){
