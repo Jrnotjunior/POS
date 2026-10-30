@@ -244,7 +244,25 @@ Deno.serve(async(req:Request)=>{
     }
     if(!context)return response(req,err(isMenu||isSalesHistory||isOrders||isOrderTransition?"NOT_FOUND":"FORBIDDEN",isMenu||isSalesHistory||isOrders||isOrderTransition?"The requested branch is unavailable or not authorized.":"No active branch is available for your restaurant account.",requestId),isMenu||isSalesHistory||isOrders||isOrderTransition?404:403,requestId);
     const role=memberships.find((m:Rec)=>m.tenant_id===context!.tenantId)?.role;
-    if(isSession)return response(req,{data:{userId:auth.user.id,displayName:displayName(auth.user),tenantId:context.tenantId,tenantName:context.tenantName,branchId:context.branchId,branchName:context.branchName,role,permissions:["pos.session.read","pos.menu.read","pos.sales.read","pos.sale.create"]},requestId},200,requestId);
+    if(isSession){
+      // Return only active branches the resolved membership can access. Owners
+      // may choose any active branch in their tenant; cashiers require an
+      // explicit branch_memberships row. Branch-specific routes independently
+      // validate the requested branch against this same authorization policy.
+      let branchQuery=admin.from("branches").select("id,name,slug,timezone")
+        .eq("tenant_id",context.tenantId).eq("is_active",true).order("created_at",{ascending:true});
+      if(role!=="restaurant_owner"){
+        const {data:assigned,error:assignedError}=await admin.from("branch_memberships")
+          .select("branch_id").eq("tenant_id",context.tenantId).eq("user_id",auth.user.id);
+        if(assignedError)throw assignedError;
+        const branchIds=(assigned??[]).map((row:Rec)=>row.branch_id).filter((id):id is string=>typeof id==="string");
+        branchQuery=branchIds.length?branchQuery.in("id",branchIds):branchQuery.eq("id","00000000-0000-0000-0000-000000000000");
+      }
+      const {data:authorizedBranches,error:branchesError}=await branchQuery.limit(100);
+      if(branchesError)throw branchesError;
+      const branches=(authorizedBranches??[]).map((branch:Rec)=>({id:branch.id,name:branch.name,slug:branch.slug,timezone:typeof branch.timezone==="string"?branch.timezone:"Asia/Manila"}));
+      return response(req,{data:{userId:auth.user.id,displayName:displayName(auth.user),tenantId:context.tenantId,tenantName:context.tenantName,branchId:context.branchId,branchName:context.branchName,branches,role,permissions:["pos.session.read","pos.menu.read","pos.sales.read","pos.sale.create"]},requestId},200,requestId);
+    }
     if(isFiscalProfileGet||isFiscalProfileSave){
       if(role!=="restaurant_owner")return response(req,err("FORBIDDEN","Only a restaurant owner can manage taxpayer fiscal configuration.",requestId),403,requestId);
       if(isFiscalProfileGet){
