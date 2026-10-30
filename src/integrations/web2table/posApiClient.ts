@@ -4,6 +4,8 @@ import {
   type PosCashSaleHistoryItem,
   type PosCashSaleRequest,
   type PosCashSaleResult,
+  type PosCashierShift,
+  type PosClosedShift,
   type PosMenuItem,
   type PosSessionContext,
 } from './posApiContract';
@@ -106,7 +108,62 @@ export function createPosApiClient(options: PosApiClientOptions) {
     }
   }
 
+  async function postJson(path: string, body: Record<string, unknown>): Promise<unknown> {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new PosApiClientError('Sign in to Web2table and complete MFA to access the POS.', 401, 'UNAUTHENTICATED');
+    const response = await fetcher(`${baseUrl}${path}`, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw await readError(response);
+    try { return await response.json() as unknown; }
+    catch { throw new PosApiClientError('The POS service returned invalid JSON.', response.status, 'INVALID_RESPONSE'); }
+  }
+
   return {
+    async getCashierShift(branchId: string): Promise<PosCashierShift> {
+      if (!branchId.trim()) throw new Error('A server-authorized branch context is required.');
+      const payload = await getJson(`/api/pos/v1/shift?branchId=${encodeURIComponent(branchId)}`);
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isRecord(data) || typeof data.active !== 'boolean'
+        || (data.active && (typeof data.id !== 'string' || data.status !== 'open'
+          || !Number.isSafeInteger(data.opening_cash_centavos)
+          || !Number.isSafeInteger(data.expected_cash_centavos)))) {
+        throw new PosApiClientError('The POS service returned an invalid shift response.', 502, 'INVALID_RESPONSE');
+      }
+      return data as unknown as PosCashierShift;
+    },
+
+    async openCashierShift(branchId: string, openingCashCentavos: number): Promise<PosCashierShift> {
+      if (!branchId.trim() || !Number.isSafeInteger(openingCashCentavos) || openingCashCentavos < 0) {
+        throw new PosApiClientError('Enter a valid opening cash amount.', 400, 'VALIDATION_ERROR');
+      }
+      const payload = await postJson('/api/pos/v1/shift/open', { branchId, openingCashCentavos });
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isRecord(data) || typeof data.id !== 'string' || data.status !== 'open'
+        || !Number.isSafeInteger(data.opening_cash_centavos)) {
+        throw new PosApiClientError('The POS service returned an invalid shift confirmation.', 502, 'INVALID_RESPONSE');
+      }
+      return { ...data, active: true } as unknown as PosCashierShift;
+    },
+
+    async closeCashierShift(branchId: string, countedCashCentavos: number, closeNote = ''): Promise<PosClosedShift> {
+      if (!branchId.trim() || !Number.isSafeInteger(countedCashCentavos) || countedCashCentavos < 0) {
+        throw new PosApiClientError('Enter a valid counted cash amount.', 400, 'VALIDATION_ERROR');
+      }
+      const payload = await postJson('/api/pos/v1/shift/close', { branchId, countedCashCentavos, closeNote });
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isRecord(data) || typeof data.id !== 'string' || data.status !== 'closed'
+        || !Number.isSafeInteger(data.expected_cash_centavos)
+        || !Number.isSafeInteger(data.counted_cash_centavos)
+        || !Number.isSafeInteger(data.cash_variance_centavos)) {
+        throw new PosApiClientError('The POS service returned an invalid shift close confirmation.', 502, 'INVALID_RESPONSE');
+      }
+      return data as unknown as PosClosedShift;
+    },
+
     async createCashSale(request: PosCashSaleRequest): Promise<PosCashSaleResult> {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new PosApiClientError('Sign in to Web2table and complete MFA to access the POS.', 401, 'UNAUTHENTICATED');
