@@ -6,6 +6,7 @@ const sale: PosCashSaleHistoryItem = {
   id: 'sale-1', sale_number: 1, subtotal_centavos: 15000, total_centavos: 15000,
   payment_method: 'cash', payment_status: 'paid', cash_tendered_centavos: 20000,
   change_centavos: 5000, created_at: '2026-10-31T10:00:00.000Z',
+  customer_name: 'Alex <Customer>',
   items: [{ line_number: 1, item_name_snapshot: '<script>alert(1)</script>', unit_price_centavos: 15000, quantity: 1, line_total_centavos: 15000 }],
 };
 const context = { sellerName: 'Sample Restaurant', branchName: 'Main Branch', cashierName: 'Staff Member', generatedAt: '2026-10-31T10:05:00.000Z' };
@@ -18,6 +19,7 @@ describe('fiscal document safety gate', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('150.00');
     expect(html).toContain('200.00');
+    expect(html).toContain('Customer: Alex &lt;Customer&gt;');
   });
 
   it('prints X reading preview only for an active shift', () => {
