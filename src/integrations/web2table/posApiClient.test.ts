@@ -42,7 +42,8 @@ describe('POS API client', () => {
       headers: { Accept: 'application/json', Authorization: 'Bearer test-access-token' },
     }));
     expect(fetcher).toHaveBeenNthCalledWith(2, 'https://api.example.test/api/pos/v1/branches/branch-1/menu', expect.objectContaining({
-      credentials: 'include',
+      credentials: 'omit',
+      headers: { Accept: 'application/json', Authorization: 'Bearer test-access-token' },
     }));
   });
 
@@ -58,7 +59,7 @@ describe('POS API client', () => {
 
   it('rejects malformed menu payloads', async () => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: [{ ...menu[0], unitPriceCentavos: -1 }] }));
-    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher });
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
     await expect(client.getBranchMenu('branch-1')).rejects.toMatchObject({
       code: 'INVALID_RESPONSE',
       status: 502,
