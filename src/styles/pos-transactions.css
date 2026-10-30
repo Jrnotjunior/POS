@@ -1,0 +1,38 @@
+.pos-sign-out{padding:7px 10px;border:1px solid var(--color-border);border-radius:7px;background:#fff;color:var(--color-text);font:600 11px var(--font-ui);cursor:pointer}
+.text-button{padding:6px 8px;border:0;border-radius:6px;background:transparent;color:#475569;font:600 11px var(--font-ui);cursor:pointer}
+.text-button:hover:not(:disabled){background:#f1f5f9;color:#111827}
+.text-button:disabled{opacity:.45;cursor:not-allowed}
+.receipt-action{display:block;margin:10px auto 0}
+.transactions-panel{overflow:hidden;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:#fff;box-shadow:0 1px 2px rgb(15 23 42 / 3%)}
+.transactions-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:21px 22px;border-bottom:1px solid var(--color-border)}
+.transactions-heading h2{margin:0;font:800 19px var(--font-heading);letter-spacing:-.03em}
+.transactions-heading p{margin:5px 0 0;color:var(--color-muted);font-size:12px}
+.transactions-empty{padding:42px 20px;color:var(--color-muted);font-size:12px;text-align:center}
+.transactions-table-wrap{width:100%;overflow-x:auto}
+.transactions-table{width:100%;border-collapse:collapse;text-align:left;font-size:11px}
+.transactions-table th{padding:12px 14px;background:#f8fafc;color:#64748b;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.transactions-table td{padding:14px;border-top:1px solid #edf0f4;color:#475569;vertical-align:middle}
+.transactions-table td:first-child,.transactions-table td:nth-child(3){color:#1f2937}
+.transactions-table td:nth-child(3){min-width:190px;max-width:310px;line-height:1.55}
+.paid-pill{display:inline-flex;padding:4px 6px;border-radius:5px;background:#ecfdf5;color:#166534;font-size:9px;font-weight:800;white-space:nowrap}
+.checkout-backdrop{position:fixed;z-index:20;inset:0;display:grid;place-items:center;overflow:auto;padding:20px;background:rgb(15 23 42 / 55%)}
+.checkout-dialog{width:min(100%,430px);padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 24px 80px rgb(15 23 42 / 24%)}
+.checkout-dialog-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.checkout-dialog-heading h2{margin:0;font:800 24px var(--font-heading);letter-spacing:-.04em}
+.dialog-close{display:grid;width:32px;height:32px;place-items:center;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#475569;font-size:21px;cursor:pointer}
+.dialog-close:disabled{opacity:.5;cursor:not-allowed}
+.checkout-due{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0;padding:17px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;color:#64748b;font-size:12px}
+.checkout-due strong{color:#111827;font:800 28px var(--font-heading);letter-spacing:-.04em}
+.cash-input-label{display:block;margin-bottom:8px;color:#334155;font-size:11px;font-weight:700}
+.cash-input-wrap{display:flex;align-items:center;gap:8px;min-height:52px;padding:0 14px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#64748b;font-size:18px}
+.cash-input-wrap:focus-within{border-color:#64748b;box-shadow:0 0 0 3px rgb(100 116 139 / 13%)}
+.cash-input-wrap input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#111827;font:700 20px var(--font-ui)}
+.cash-shortcuts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.cash-shortcuts button{padding:7px 10px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;color:#334155;font:600 10px var(--font-ui);cursor:pointer}
+.cash-shortcuts button:hover{border-color:#94a3b8;background:#f1f5f9}
+.change-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:21px;padding:14px 0;border-top:1px dashed #cbd5e1;color:#64748b;font-size:12px}
+.change-row strong{color:#166534;font:800 20px var(--font-heading)}
+.change-row strong.amount-short{color:#b91c1c}
+.checkout-dialog .checkout-button{margin-top:12px}
+.checkout-dialog .checkout-caption{margin-top:10px;font-size:10px;line-height:1.5}
+@media(max-width:600px){.checkout-dialog{padding:19px}.transactions-heading{padding:16px}.transactions-table th,.transactions-table td{padding:11px}.transactions-table{min-width:720px}.pos-sign-out{padding:6px}.checkout-backdrop{align-items:start;padding:12px}.checkout-dialog{margin-block:auto}}
