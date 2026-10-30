@@ -69,6 +69,7 @@ export function PosApp() {
   const [loyaltyBalance, setLoyaltyBalance] = useState<PosLoyaltyBalance | null>(null);
   const [loyaltyLoading, setLoyaltyLoading] = useState(false);
   const [loyaltyError, setLoyaltyError] = useState('');
+  const customerSearchRequestId = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -323,20 +324,26 @@ export function PosApp() {
       setLoyaltyError(query.trim().length < 2 ? '' : '');
       return;
     }
+    const requestId = ++customerSearchRequestId.current;
     setLoyaltyLoading(true); setLoyaltyError(''); setLoyaltyBalance(null); setLoyaltyCustomer(null);
     try {
       const results = await apiClient.searchLoyaltyCustomers(session.branchId, query.trim());
+      if (requestId !== customerSearchRequestId.current) return;
       setLoyaltyCustomers(results);
       if (results.length === 0) setLoyaltyError('No linked customer accounts found for this branch.');
     } catch (error) {
+      if (requestId !== customerSearchRequestId.current) return;
       setLoyaltyCustomers([]);
       setLoyaltyError(error instanceof Error ? error.message : 'Customer search failed.');
-    } finally { setLoyaltyLoading(false); }
+    } finally {
+      if (requestId === customerSearchRequestId.current) setLoyaltyLoading(false);
+    }
   }
 
   async function selectLoyaltyCustomer(customer: PosLoyaltyCustomer) {
     if (!apiClient || !session) return;
-    setLoyaltyCustomer(customer); setCustomerName(customer.displayName); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
+    customerSearchRequestId.current += 1;
+    setLoyaltyCustomer(customer); setCustomerName(customer.displayName); setLoyaltySearch(customer.displayName); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
     try {
       const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerUserId);
       setLoyaltyBalance(balance);
@@ -359,6 +366,8 @@ export function PosApp() {
         branchId: session.branchId,
         idempotencyKey: pendingSaleKey.current.key,
         cashTenderedCentavos: receivedCentavos,
+        customerName: customerName.trim() || null,
+        customerUserId: loyaltyCustomer?.customerUserId ?? null,
         items: cart.map((line) => ({ itemId: line.product.id, quantity: line.quantity })),
       });
       pendingSaleKey.current = null;
@@ -367,6 +376,13 @@ export function PosApp() {
       // Printing can work immediately without relying on history refresh.
       setCart([]);
       setCashReceived('');
+      setCustomerName('');
+      setLoyaltySearch('');
+      setLoyaltyCustomer(null);
+      setLoyaltyCustomers([]);
+      setLoyaltyBalance(null);
+      setLoyaltyError('');
+      customerSearchRequestId.current += 1;
       setCheckoutOpen(false);
       setNotice(`Sale ${saleLabel(result)} saved successfully.`);
       setView('register');
@@ -495,6 +511,7 @@ export function PosApp() {
                   <label htmlFor="pos-customer-name">Customer name <span>OPTIONAL</span></label>
                   <input id="pos-customer-name" name="customerName" autoComplete="off" maxLength={120} value={customerName} onChange={(event) => {
                     const value = event.target.value.slice(0, 120);
+                    customerSearchRequestId.current += 1;
                     setCustomerName(value);
                     setLoyaltySearch(value);
                     setLoyaltyError('');
