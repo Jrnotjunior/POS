@@ -52,6 +52,7 @@ function isSessionContext(value: unknown): value is PosSessionContext {
     && typeof value.tenantName === 'string' && value.tenantName.trim().length > 0
     && typeof value.branchId === 'string' && value.branchId.trim().length > 0
     && typeof value.branchName === 'string' && value.branchName.trim().length > 0
+    && (value.role === undefined || value.role === 'restaurant_owner' || value.role === 'cashier')
     && Array.isArray(value.permissions)
     && value.permissions.every((permission) => typeof permission === 'string');
 }
