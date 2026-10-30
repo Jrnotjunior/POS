@@ -2,6 +2,10 @@
 -- Rates/classifications are explicitly configured per taxpayer/branch and reviewed
 -- before use. This migration does not set statutory defaults or enable invoice issuance.
 
+-- Needed for the composite foreign key from tax policies.
+create unique index if not exists pos_fiscal_profiles_id_tenant_branch_unique
+  on public.pos_fiscal_profiles (id, tenant_id, branch_id);
+
 create table if not exists public.pos_fiscal_tax_policies (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete restrict,
@@ -41,10 +45,6 @@ create table if not exists public.pos_fiscal_tax_policies (
     )
   )
 );
-
--- Needed for the composite foreign key from tax policies.
-create unique index if not exists pos_fiscal_profiles_id_tenant_branch_unique
-  on public.pos_fiscal_profiles (id, tenant_id, branch_id);
 
 create index if not exists pos_fiscal_tax_policies_effective_lookup_idx
   on public.pos_fiscal_tax_policies (tenant_id, branch_id, status, effective_from desc);
