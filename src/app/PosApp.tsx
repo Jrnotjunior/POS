@@ -52,7 +52,6 @@ export function PosApp() {
   const [salesError, setSalesError] = useState('');
   const [salesSearch, setSalesSearch] = useState('');
   const [cashierShift, setCashierShift] = useState<PosCashierShift | null>(null);
-  const [shiftLoading, setShiftLoading] = useState(false);
   const [shiftActionBusy, setShiftActionBusy] = useState(false);
   const [openingCash, setOpeningCash] = useState('0.00');
   const [countedCash, setCountedCash] = useState('');
