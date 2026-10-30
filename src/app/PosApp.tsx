@@ -4,7 +4,7 @@ import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../doma
 import { renderCashReceiptHtml, renderXReadingHtml, renderZReadingHtml } from '../domain/fiscalDocuments';
 import { FiscalProfileSettings } from '../features/fiscal/FiscalProfileSettings';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
-import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
+import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosLoyaltyCustomer, PosLoyaltyBalance, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
 import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
 import { subscribeToTenantOrderChanges, type PosRealtimeTable } from '../integrations/web2table/posRealtime';
