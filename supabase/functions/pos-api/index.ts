@@ -318,7 +318,7 @@ Deno.serve(async(req:Request)=>{
       const effectiveFrom=typeof body.effectiveFrom==="string"?body.effectiveFrom.trim():"";
       const effectiveUntil=typeof body.effectiveUntil==="string"&&body.effectiveUntil.trim()?body.effectiveUntil.trim():null;
       const isoDate=(v:string)=>{
-        const match=v.match(/^(\\d{4})-(\\d{2})-(\\d{2})T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,9})?)?(?:Z|[+-]\\d{2}:\\d{2})$/);
+        const match=v.match(/^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(?::\d{2}(?:\\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/);
         if(!match||!Number.isFinite(Date.parse(v)))return false;
         const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
         const calendarDate=new Date(Date.UTC(year,month-1,day));
