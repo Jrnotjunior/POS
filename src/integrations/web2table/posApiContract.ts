@@ -124,3 +124,29 @@ export type PosCashSaleHistoryItem = PosCashSaleResult & Readonly<{
     line_total_centavos: number;
   }>[];
 }>;
+
+export type PosCashierShift = Readonly<{
+  active: boolean;
+  id?: string;
+  status?: 'open' | 'closed';
+  opening_cash_centavos?: number;
+  cash_sales_centavos?: number;
+  expected_cash_centavos?: number;
+  counted_cash_centavos?: number;
+  cash_variance_centavos?: number;
+  opened_at?: string;
+  closed_at?: string;
+  close_note?: string | null;
+}>;
+
+export type PosClosedShift = Readonly<{
+  id: string;
+  status: 'closed';
+  opening_cash_centavos: number;
+  expected_cash_centavos: number;
+  counted_cash_centavos: number;
+  cash_variance_centavos: number;
+  opened_at: string;
+  closed_at: string;
+  close_note: string | null;
+}>;
