@@ -45,6 +45,7 @@ export function PosApp() {
   const [cashReceived, setCashReceived] = useState('');
   const [submittingSale, setSubmittingSale] = useState(false);
   const [lastSale, setLastSale] = useState<PosCashSaleResult | null>(null);
+  const [lastSaleItems, setLastSaleItems] = useState<PosCashSaleHistoryItem['items']>([]);
   const [sales, setSales] = useState<PosCashSaleHistoryItem[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState('');
@@ -130,6 +131,7 @@ export function PosApp() {
         items: cart.map((line) => ({ itemId: line.product.id, quantity: line.quantity })),
       });
       setLastSale(result);
+      setLastSaleItems(cart.map((line, index) => ({ line_number: index + 1, item_name_snapshot: line.product.name, unit_price_centavos: line.product.price, quantity: line.quantity, line_total_centavos: line.product.price * line.quantity })));
       setCart([]);
       setCashReceived('');
       setCheckoutOpen(false);
@@ -143,8 +145,8 @@ export function PosApp() {
 
   function printReceipt(sale: PosCashSaleHistoryItem | PosCashSaleResult = lastSale as PosCashSaleResult) {
     if (!sale) return;
-    const saved = 'items' in sale ? sale : null;
-    const itemRows = saved?.items.map((item) => `<tr><td>${escapeHtml(item.item_name_snapshot)} × ${item.quantity}</td><td>${formatPhp(moneyFromCentavos(item.line_total_centavos))}</td></tr>`).join('') ?? '';
+    const savedItems = 'items' in sale ? sale.items : (sale.id === lastSale?.id ? lastSaleItems : []);
+    const itemRows = savedItems.map((item) => `<tr><td>${escapeHtml(item.item_name_snapshot)} × ${item.quantity}</td><td>${formatPhp(moneyFromCentavos(item.line_total_centavos))}</td></tr>`).join('') ?? '';
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${saleLabel(sale)}</title><style>body{font:14px/1.45 Arial,sans-serif;color:#111;max-width:320px;margin:24px auto;padding:0 12px}h1,p{text-align:center}h1{font-size:20px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px dashed #ddd}td:last-child{text-align:right;white-space:nowrap}.total{font-weight:bold;font-size:18px;border-top:1px solid #111;padding-top:12px}.muted{color:#555;font-size:12px}</style></head><body><h1>Web2table</h1><p>Restaurant operations, connected.</p><p>Cash sale receipt<br>${saleLabel(sale)}<br><span class="muted">${new Date(sale.created_at).toLocaleString()}</span></p><table>${itemRows}</table><p class="total">Total: ${formatPhp(moneyFromCentavos(sale.total_centavos))}</p><p>Cash received: ${formatPhp(moneyFromCentavos(sale.cash_tendered_centavos))}<br>Change: ${formatPhp(moneyFromCentavos(sale.change_centavos))}</p><p>Thank you!</p><script>window.onload=()=>window.print()<\/script></body></html>`;
     const popup = window.open('', '_blank', 'width=420,height=680');
     if (!popup) { setNotice('Allow pop-ups to print the receipt.'); return; }
