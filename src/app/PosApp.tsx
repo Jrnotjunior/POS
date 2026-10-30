@@ -208,13 +208,26 @@ export function PosApp() {
       });
       pendingSaleKey.current = null;
       setLastSale(result);
-      setLastSaleItems(cart.map((line, index) => ({ line_number: index + 1, item_name_snapshot: line.product.name, unit_price_centavos: line.product.price, quantity: line.quantity, line_total_centavos: line.product.price * line.quantity })));
+      const checkoutItems = cart.map((line, index) => ({ line_number: index + 1, item_name_snapshot: line.product.name, unit_price_centavos: line.product.price, quantity: line.quantity, line_total_centavos: line.product.price * line.quantity }));
+      setLastSaleItems(checkoutItems);
       setCart([]);
       setCashReceived('');
       setCheckoutOpen(false);
       setNotice(`Sale ${saleLabel(result)} saved successfully.`);
       setView('register');
-      void loadSales();
+      // Prefer persisted sale-line snapshots for the receipt; a history refresh failure
+      // must not turn an already-saved sale into an apparent checkout failure.
+      try {
+        const refreshedSales = await apiClient.getBranchSales(session.branchId);
+        setSales(refreshedSales);
+        const persistedSale = refreshedSales.find((sale) => sale.id === result.id);
+        if (persistedSale) {
+          setLastSaleItems(persistedSale.items);
+          setLastSale(persistedSale);
+        }
+      } catch {
+        // Keep the locally captured receipt items; the sale itself was already confirmed.
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The sale could not be saved. Please retry.');
     } finally { setSubmittingSale(false); }
