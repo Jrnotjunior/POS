@@ -1,6 +1,9 @@
 import {
   isValidPosMenuItem,
   type PosApiError,
+  type PosCashSaleHistoryItem,
+  type PosCashSaleRequest,
+  type PosCashSaleResult,
   type PosMenuItem,
   type PosSessionContext,
 } from './posApiContract';
@@ -104,6 +107,39 @@ export function createPosApiClient(options: PosApiClientOptions) {
   }
 
   return {
+    async createCashSale(request: PosCashSaleRequest): Promise<PosCashSaleResult> {
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new PosApiClientError('Sign in to Web2table and complete MFA to access the POS.', 401, 'UNAUTHENTICATED');
+      if (!request.branchId.trim() || !request.idempotencyKey.trim() || !Number.isSafeInteger(request.cashTenderedCentavos) || request.cashTenderedCentavos < 1 || request.items.length < 1) {
+        throw new PosApiClientError('Check the cash received and sale items before submitting.', 400, 'VALIDATION_ERROR');
+      }
+      const response = await fetcher(`${baseUrl}/api/pos/v1/sales`, {
+        method: 'POST',
+        credentials: 'omit',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) throw await readError(response);
+      let payload: unknown;
+      try { payload = await response.json() as unknown; }
+      catch { throw new PosApiClientError('The POS service returned invalid JSON.', response.status, 'INVALID_RESPONSE'); }
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isRecord(data) || typeof data.id !== 'string' || !Number.isSafeInteger(data.sale_number) || !Number.isSafeInteger(data.total_centavos) || !Number.isSafeInteger(data.cash_tendered_centavos) || !Number.isSafeInteger(data.change_centavos)) {
+        throw new PosApiClientError('The POS service returned an invalid sale confirmation.', 502, 'INVALID_RESPONSE');
+      }
+      return data as unknown as PosCashSaleResult;
+    },
+
+    async getBranchSales(branchId: string, limit = 50): Promise<PosCashSaleHistoryItem[]> {
+      if (!branchId.trim()) throw new Error('A server-authorized branch context is required.');
+      const payload = await getJson(`/api/pos/v1/branches/${encodeURIComponent(branchId)}/sales?limit=${Math.max(1, Math.min(100, Math.trunc(limit)))}`);
+      const items = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!Array.isArray(items) || !items.every((sale) => isRecord(sale) && typeof sale.id === 'string' && Number.isSafeInteger(sale.sale_number) && Array.isArray(sale.items))) {
+        throw new PosApiClientError('The POS service returned an invalid sales history response.', 502, 'INVALID_RESPONSE');
+      }
+      return items as PosCashSaleHistoryItem[];
+    },
+
     async getSession(): Promise<PosSessionContext> {
       const payload = await getJson('/api/pos/v1/session');
       const context = isRecord(payload) && 'data' in payload ? payload.data : payload;
