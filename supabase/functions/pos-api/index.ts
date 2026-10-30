@@ -100,7 +100,9 @@ Deno.serve(async(req:Request)=>{
     const isShiftGet=req.method==="GET"&&path.endsWith("/api/pos/v1/shift");
     const isShiftOpen=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/open");
     const isShiftClose=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/close");
-    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    const isFiscalProfileGet=req.method==="GET"&&path.endsWith("/api/pos/v1/fiscal-profile");
+    const isFiscalProfileSave=req.method==="POST"&&path.endsWith("/api/pos/v1/fiscal-profile");
+    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
     if(isShiftGet||isShiftOpen||isShiftClose){
       let body:Rec={};
       if(isShiftOpen||isShiftClose){
@@ -192,20 +194,29 @@ Deno.serve(async(req:Request)=>{
       if(typeof orderActionBody.orderId!=="string"||!uuid(orderActionBody.orderId)||!["confirm","reject","cancel"].includes(String(orderActionBody.action)))
         return response(req,err("VALIDATION_ERROR","A valid order and supported cashier action are required.",requestId),400,requestId);
     }
+    let fiscalProfileBody:Rec={};
+    if(isFiscalProfileSave){
+      const parsedBody=await readJsonObject(req,20000);
+      if(!parsedBody.ok){
+        const tooLarge=parsedBody.reason==="too_large";
+        return response(req,err("VALIDATION_ERROR",tooLarge?"The fiscal profile request is too large.":"Provide a valid JSON fiscal profile.",requestId),tooLarge?413:400,requestId);
+      }
+      fiscalProfileBody=parsedBody.value;
+    }
     // Owners can access active branches in their tenant. Cashiers must have an
     // explicit branch_memberships row; tenant membership alone is insufficient.
     const {data:memberships,error:membershipError}=await admin.from("tenant_memberships").select("tenant_id,role").eq("user_id",auth.user.id).eq("status","active").in("role",["restaurant_owner","cashier"]).limit(50);
     if(membershipError)throw membershipError;
     if(!memberships?.length)return response(req,err("FORBIDDEN","Your account does not have an active owner or cashier POS permission.",requestId),403,requestId);
     const ordersBranch=new URL(req.url).searchParams.get("branchId")??"";
-    const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):isOrders?ordersBranch:isOrderTransition?String(orderActionBody.branchId??""):"";
-    if((isMenu||isSalesHistory||isOrders||isOrderTransition)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
+    const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):(isOrders||isFiscalProfileGet)?ordersBranch:(isOrderTransition?String(orderActionBody.branchId??""):isFiscalProfileSave?String(fiscalProfileBody.branchId??""):"");
+    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
     let context:{tenantId:string;tenantName:string;branchId:string;branchName:string}|null=null;
     for(const m of memberships){
       const {data:t,error:te}=await admin.from("tenants").select("id,name").eq("id",m.tenant_id).eq("status","active").maybeSingle();
       if(te)throw te;if(!t)continue;
       let q=admin.from("branches").select("id,tenant_id,name").eq("tenant_id",t.id).eq("is_active",true);
-      if(isMenu||isSalesHistory||isOrders||isOrderTransition)q=q.eq("id",requestedBranch);
+      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave)q=q.eq("id",requestedBranch);
       if(m.role==="cashier") {
         const {data:assigned,error:assignedError}=await admin.from("branch_memberships").select("branch_id").eq("tenant_id",t.id).eq("user_id",auth.user.id);
         if(assignedError)throw assignedError;
@@ -220,6 +231,63 @@ Deno.serve(async(req:Request)=>{
     if(!context)return response(req,err(isMenu||isSalesHistory||isOrders||isOrderTransition?"NOT_FOUND":"FORBIDDEN",isMenu||isSalesHistory||isOrders||isOrderTransition?"The requested branch is unavailable or not authorized.":"No active branch is available for your restaurant account.",requestId),isMenu||isSalesHistory||isOrders||isOrderTransition?404:403,requestId);
     const role=memberships.find((m:Rec)=>m.tenant_id===context!.tenantId)?.role;
     if(isSession)return response(req,{data:{userId:auth.user.id,displayName:displayName(auth.user),tenantId:context.tenantId,tenantName:context.tenantName,branchId:context.branchId,branchName:context.branchName,role,permissions:["pos.session.read","pos.menu.read","pos.sales.read","pos.sale.create"]},requestId},200,requestId);
+    if(isFiscalProfileGet||isFiscalProfileSave){
+      if(role!=="restaurant_owner")return response(req,err("FORBIDDEN","Only a restaurant owner can manage taxpayer fiscal configuration.",requestId),403,requestId);
+      if(isFiscalProfileGet){
+        const {data:profile,error:profileError}=await admin.from("pos_fiscal_profiles")
+          .select("id,tenant_id,branch_id,taxpayer_registered_name,trade_name,taxpayer_tin,tin_branch_code,registered_address,tax_regime,invoice_document_type,invoice_series_prefix,fiscal_status,authorization_reference,authorization_effective_at,authorization_expires_at,authorized_at,software_name,software_version,machine_or_terminal_identifier,created_at,updated_at")
+          .eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).maybeSingle();
+        if(profileError)throw profileError;
+        return response(req,{data:profile,requestId},200,requestId);
+      }
+      const body=fiscalProfileBody;
+      const stringField=(key:string,max:number,required=true):string|null=>{
+        const raw=body[key];
+        if(raw===undefined||raw===null){return required?null:"";}
+        if(typeof raw!=="string")return null;
+        const value=raw.trim();
+        if((required&&value.length===0)||value.length>max)return null;
+        return value;
+      };
+      const taxpayerRegisteredName=stringField("taxpayerRegisteredName",200);
+      const tradeName=stringField("tradeName",200,false);
+      const taxpayerTin=stringField("taxpayerTin",12);
+      const tinBranchCode=stringField("tinBranchCode",3);
+      const registeredAddress=stringField("registeredAddress",500);
+      const invoiceSeriesPrefix=stringField("invoiceSeriesPrefix",20);
+      const softwareName=stringField("softwareName",160);
+      const softwareVersion=stringField("softwareVersion",80);
+      const machineOrTerminalIdentifier=stringField("machineOrTerminalIdentifier",160,false);
+      const taxRegime=body.taxRegime;
+      if(!taxpayerRegisteredName||taxpayerRegisteredName.length<2||!taxpayerTin||!/^[0-9]{9,12}$/.test(taxpayerTin)
+        ||!tinBranchCode||!/^[0-9]{3}$/.test(tinBranchCode)||!registeredAddress||registeredAddress.length<5
+        ||!["vat_registered","non_vat","other_requires_review"].includes(String(taxRegime))
+        ||!invoiceSeriesPrefix||!/^[A-Z0-9-]{1,20}$/.test(invoiceSeriesPrefix)
+        ||!softwareName||softwareName.length<2||!softwareVersion
+        ||(tradeName===null)||(machineOrTerminalIdentifier===null))
+        return response(req,err("VALIDATION_ERROR","Check the taxpayer details, tax regime, invoice series, and software identity fields.",requestId),400,requestId);
+      const {data:existing,error:existingError}=await admin.from("pos_fiscal_profiles").select("id,created_by")
+        .eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).maybeSingle();
+      if(existingError)throw existingError;
+      const profileValues={
+        tenant_id:context.tenantId,branch_id:context.branchId,
+        taxpayer_registered_name:taxpayerRegisteredName,trade_name:tradeName||null,
+        taxpayer_tin:taxpayerTin,tin_branch_code:tinBranchCode,registered_address:registeredAddress,
+        tax_regime:String(taxRegime),invoice_document_type:"invoice",invoice_series_prefix:invoiceSeriesPrefix,
+        fiscal_status:"draft",authorization_reference:null,authorization_effective_at:null,
+        authorization_expires_at:null,authorized_by:null,authorized_at:null,
+        software_name:softwareName,software_version:softwareVersion,
+        machine_or_terminal_identifier:machineOrTerminalIdentifier||null,
+        additional_authorization_metadata:{},created_by:existing?.created_by??auth.user.id,updated_by:auth.user.id
+      };
+      const {data:profile,error:saveError}=await admin.from("pos_fiscal_profiles")
+        .upsert(profileValues,{onConflict:"tenant_id,branch_id"})
+        .select("id,tenant_id,branch_id,taxpayer_registered_name,trade_name,taxpayer_tin,tin_branch_code,registered_address,tax_regime,invoice_document_type,invoice_series_prefix,fiscal_status,authorization_reference,authorization_effective_at,authorization_expires_at,authorized_at,software_name,software_version,machine_or_terminal_identifier,created_at,updated_at")
+        .single();
+      if(saveError)throw saveError;
+      return response(req,{data:profile,requestId},200,requestId);
+    }
+
     if(isOrders){
       const filter=new URL(req.url).searchParams.get("filter")??"active";
       if(filter!=="active"&&filter!=="all")return response(req,err("VALIDATION_ERROR","Order filter must be active or all.",requestId),400,requestId);
