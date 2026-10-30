@@ -88,8 +88,15 @@ $fn$;
 REVOKE ALL ON FUNCTION public.prevent_pos_cashier_shift_audit_mutation() FROM PUBLIC, anon, authenticated, service_role;
 
 DROP TRIGGER IF EXISTS pos_cashier_shift_audit_capture ON public.pos_cashier_shifts;
-CREATE TRIGGER pos_cashier_shift_audit_capture
-AFTER INSERT OR UPDATE OF status ON public.pos_cashier_shifts
+DROP TRIGGER IF EXISTS pos_cashier_shift_audit_capture_insert ON public.pos_cashier_shifts;
+DROP TRIGGER IF EXISTS pos_cashier_shift_audit_capture_close ON public.pos_cashier_shifts;
+CREATE TRIGGER pos_cashier_shift_audit_capture_insert
+AFTER INSERT ON public.pos_cashier_shifts
+FOR EACH ROW
+EXECUTE FUNCTION public.capture_pos_cashier_shift_audit_event();
+
+CREATE TRIGGER pos_cashier_shift_audit_capture_close
+AFTER UPDATE OF status ON public.pos_cashier_shifts
 FOR EACH ROW
 EXECUTE FUNCTION public.capture_pos_cashier_shift_audit_event();
 
