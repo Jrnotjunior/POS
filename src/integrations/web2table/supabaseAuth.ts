@@ -42,10 +42,12 @@ export async function signInWithPassword(email: string, password: string): Promi
 export async function verifySignInMfa(factorId: string, challengeId: string, code: string): Promise<SignInResult> {
   if (!supabaseAuth) return { status: 'error', message: 'POS authentication is not configured.' };
   const { data, error } = await supabaseAuth.auth.mfa.verify({ factorId, challengeId, code: code.replace(/\s/g, '') });
-  if (error || !data.session) return { status: 'error', message: error?.message ?? 'The authenticator code was not accepted.' };
+  if (error || !data.access_token) return { status: 'error', message: error?.message ?? 'The authenticator code was not accepted.' };
+  const { data: sessionData, error: sessionError } = await supabaseAuth.auth.getSession();
+  if (sessionError || !sessionData.session) return { status: 'error', message: 'MFA was accepted but the secure session could not be loaded. Please sign in again.' };
   const { data: assurance, error: assuranceError } = await supabaseAuth.auth.mfa.getAuthenticatorAssuranceLevel();
   if (assuranceError || assurance.currentLevel !== 'aal2') return { status: 'error', message: 'MFA verification did not establish a privileged session. Please try again.' };
-  return { status: 'authenticated', session: data.session };
+  return { status: 'authenticated', session: sessionData.session };
 }
 
 export async function signOutPos(): Promise<void> {
