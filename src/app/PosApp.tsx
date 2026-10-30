@@ -29,11 +29,12 @@ export function PosApp() {
 
   useEffect(() => {
     if (!apiClient) return;
+    const client = apiClient;
     let active = true;
     async function loadAuthorizedMenu() {
       try {
-        const authorizedSession = await apiClient.getSession();
-        const menu = await apiClient.getBranchMenu(authorizedSession.branchId);
+        const authorizedSession = await client.getSession();
+        const menu = await client.getBranchMenu(authorizedSession.branchId);
         if (!active) return;
         setSession(authorizedSession);
         setProducts(menu.filter((item) => item.available).map((item) => ({
@@ -134,7 +135,7 @@ export function PosApp() {
               </div>
               <div className="order-summary"><div><span>Items</span><span>{itemCount}</span></div><div><span>Subtotal</span><strong>{formatPhp(subtotal)}</strong></div><div><span>Tax and discounts</span><span className="not-configured">Not configured</span></div><div className="order-total"><span>Total</span><strong>{formatPhp(subtotal)}</strong></div><p className="tax-disclaimer">Tax rules and discounts are not configured in this prototype. Totals are not valid for payment or invoicing.</p></div>
               {notice && <div className="pos-notice" role="status">{notice}</div>}
-              <button className="checkout-button" type="button" onClick={startCheckout} disabled>Checkout unavailable <span aria-hidden="true">→</span></button>
+              <button className="checkout-button" type="button" disabled>Checkout unavailable <span aria-hidden="true">→</span></button>
               <p className="checkout-caption">{connectionStatus === 'connected' ? 'Payments remain disabled until the trusted transaction API is implemented.' : 'No payment will be processed in this demo.'}</p>
             </aside>
           </div>
