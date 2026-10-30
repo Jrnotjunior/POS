@@ -250,12 +250,25 @@ export function PosApp() {
 
   useEffect(() => {
     if (view !== 'orders' || !authenticated || !session) return;
+    let active = true;
+    const refreshWhenVisible = () => {
+      if (active && document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
+    };
     void loadOrders();
-    // Periodic reconciliation keeps the queue current while the SaaS realtime
-    // broadcast contract is not yet exposed through the POS API.
-    const timer = window.setInterval(() => { void loadOrders(true); }, 15000);
+    // Until the SaaS exposes an authorized realtime event contract, reconcile
+    // periodically and refresh immediately after tab focus/network recovery.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
+    }, 15000);
+    window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
+      active = false;
       window.clearInterval(timer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       ordersRequestId.current += 1;
     };
   }, [view, authenticated, session?.branchId, ordersFilter]);
