@@ -105,7 +105,8 @@ Deno.serve(async(req:Request)=>{
     const isFiscalTaxPoliciesGet=req.method==="GET"&&path.endsWith("/api/pos/v1/fiscal-tax-policies");
     const isFiscalTaxPolicyCreate=req.method==="POST"&&path.endsWith("/api/pos/v1/fiscal-tax-policies");
     const isLoyaltyBalance=req.method==="GET"&&path.endsWith("/api/pos/v1/loyalty/balance");
-    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave&&!isFiscalTaxPoliciesGet&&!isFiscalTaxPolicyCreate&&!isLoyaltyBalance)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    const isLoyaltyCustomerSearch=req.method==="GET"&&path.endsWith("/api/pos/v1/loyalty/customers");
+    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave&&!isFiscalTaxPoliciesGet&&!isFiscalTaxPolicyCreate&&!isLoyaltyBalance&&!isLoyaltyCustomerSearch)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
     if(isShiftGet||isShiftOpen||isShiftClose){
       let body:Rec={};
       if(isShiftOpen||isShiftClose){
@@ -233,13 +234,13 @@ Deno.serve(async(req:Request)=>{
     memberships.sort((a:Rec,b:Rec)=>Number(b.role==="restaurant_owner")-Number(a.role==="restaurant_owner"));
     const ordersBranch=new URL(req.url).searchParams.get("branchId")??"";
     const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):(isOrders||isFiscalProfileGet||isFiscalTaxPoliciesGet)?ordersBranch:(isOrderTransition?String(orderActionBody.branchId??""):isFiscalProfileSave?String(fiscalProfileBody.branchId??""):(isFiscalTaxPolicyCreate?String(fiscalTaxPolicyBody.branchId??""):""));
-    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate||isLoyaltyBalance)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
+    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate||isLoyaltyBalance||isLoyaltyCustomerSearch)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
     let context:{tenantId:string;tenantName:string;branchId:string;branchName:string}|null=null;
     for(const m of memberships){
       const {data:t,error:te}=await admin.from("tenants").select("id,name").eq("id",m.tenant_id).eq("status","active").maybeSingle();
       if(te)throw te;if(!t)continue;
       let q=admin.from("branches").select("id,tenant_id,name").eq("tenant_id",t.id).eq("is_active",true);
-      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate||isLoyaltyBalance)q=q.eq("id",requestedBranch);
+      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate||isLoyaltyBalance||isLoyaltyCustomerSearch)q=q.eq("id",requestedBranch);
       if(m.role==="cashier") {
         const {data:assigned,error:assignedError}=await admin.from("branch_memberships").select("branch_id").eq("tenant_id",t.id).eq("user_id",auth.user.id);
         if(assignedError)throw assignedError;
@@ -271,6 +272,27 @@ Deno.serve(async(req:Request)=>{
       if(branchesError)throw branchesError;
       const branches=(authorizedBranches??[]).map((branch:Rec)=>({id:branch.id,name:branch.name,slug:branch.slug,timezone:typeof branch.timezone==="string"?branch.timezone:"Asia/Manila"}));
       return response(req,{data:{userId:auth.user.id,displayName:displayName(auth.user),tenantId:context.tenantId,tenantName:context.tenantName,branchId:context.branchId,branchName:context.branchName,branches,role,permissions:["pos.session.read","pos.menu.read","pos.sales.read","pos.sale.create"]},requestId},200,requestId);
+    }
+    if(isLoyaltyCustomerSearch){
+      const params=new URL(req.url).searchParams;
+      const query=(params.get("q")??"").trim();
+      if(query.length<2||query.length>80)return response(req,err("VALIDATION_ERROR","Enter at least 2 characters to search customers.",requestId),400,requestId);
+      const safeQuery=query.replace(/[,%()]/g," ").trim();
+      const {data:rows,error:searchError}=await admin.from("customer_orders")
+        .select("customer_user_id,customer_name,customer_phone_normalized,created_at")
+        .eq("tenant_id",context.tenantId).eq("branch_id",context.branchId)
+        .not("customer_user_id","is",null)
+        .or("customer_name.ilike.%"+safeQuery+"%,customer_phone_normalized.ilike.%"+safeQuery+"%")
+        .order("created_at",{ascending:false}).limit(100);
+      if(searchError)throw searchError;
+      const unique=new Map<string,Rec>();
+      for(const row of rows??[]){
+        const id=typeof row.customer_user_id==="string"?row.customer_user_id:"";
+        if(!uuid(id)||unique.has(id))continue;
+        unique.set(id,{customerUserId:id,displayName:String(row.customer_name??"Customer"),phoneLastFour:String(row.customer_phone_normalized??"").slice(-4)});
+        if(unique.size>=20)break;
+      }
+      return response(req,{data:Array.from(unique.values()),requestId},200,requestId);
     }
     if(isLoyaltyBalance){
       const params=new URL(req.url).searchParams;
