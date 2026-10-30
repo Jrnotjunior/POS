@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
-import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext } from '../integrations/web2table/posApiContract';
+import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
 import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
 import '../styles/pos-auth.css';
@@ -10,7 +10,7 @@ import '../styles/pos-transactions.css';
 
 type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; imageUrl: string | null };
-type View = 'register' | 'transactions' | 'shifts';
+type View = 'register' | 'transactions' | 'orders' | 'shifts';
 const demoProducts: Product[] = [
   { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), imageUrl: null },
   { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), imageUrl: null },
@@ -53,6 +53,13 @@ export function PosApp() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState('');
   const [salesSearch, setSalesSearch] = useState('');
+  const [orders, setOrders] = useState<PosStaffOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+  const [ordersNotice, setOrdersNotice] = useState('');
+  const [ordersFilter, setOrdersFilter] = useState<'active' | 'all'>('active');
+  const [busyOrderId, setBusyOrderId] = useState('');
+  const ordersRequestId = useRef(0);
   const [cashierShift, setCashierShift] = useState<PosCashierShift | null>(null);
   const shiftRequestId = useRef(0);
   const [, setShiftLoading] = useState(false);
@@ -206,6 +213,52 @@ export function PosApp() {
 
   useEffect(() => { if (view === 'transactions' && authenticated && session) void loadSales(); }, [view, authenticated, session?.branchId]);
 
+  async function loadOrders(quiet = false) {
+    if (!apiClient || !session) return;
+    const requestedBranchId = session.branchId;
+    const requestId = ++ordersRequestId.current;
+    if (!quiet) setOrdersLoading(true);
+    setOrdersError('');
+    try {
+      const result = await apiClient.getStaffOrders(requestedBranchId, ordersFilter);
+      if (requestId !== ordersRequestId.current) return;
+      setOrders(result);
+    } catch (error) {
+      if (requestId !== ordersRequestId.current) return;
+      setOrdersError(error instanceof Error ? error.message : 'Could not load online orders.');
+    } finally {
+      if (requestId === ordersRequestId.current && !quiet) setOrdersLoading(false);
+    }
+  }
+
+  async function actOnOrder(order: PosStaffOrder, action: PosStaffOrderAction) {
+    if (!apiClient || !session || busyOrderId) return;
+    setBusyOrderId(order.id);
+    setOrdersError('');
+    setOrdersNotice('');
+    try {
+      await apiClient.transitionStaffOrder(session.branchId, order.id, action);
+      setOrdersNotice(`Order #${order.order_number}: ${action === 'confirm' ? 'confirmed' : action === 'reject' ? 'rejected' : 'cancelled'}.`);
+      await loadOrders();
+    } catch (error) {
+      setOrdersError(error instanceof Error ? error.message : 'Could not update this order.');
+    } finally {
+      setBusyOrderId('');
+    }
+  }
+
+  useEffect(() => {
+    if (view !== 'orders' || !authenticated || !session) return;
+    void loadOrders();
+    // Periodic reconciliation keeps the queue current while the SaaS realtime
+    // broadcast contract is not yet exposed through the POS API.
+    const timer = window.setInterval(() => { void loadOrders(true); }, 15000);
+    return () => {
+      window.clearInterval(timer);
+      ordersRequestId.current += 1;
+    };
+  }, [view, authenticated, session?.branchId, ordersFilter]);
+
   const categoryOptions = useMemo<Category[]>(() => ['All items', ...new Set(products.map((product) => product.category))], [products]);
   const visibleProducts = useMemo(() => products.filter((product) => {
     const matchesCategory = category === 'All items' || product.category === category;
@@ -297,13 +350,13 @@ export function PosApp() {
         <nav className="pos-nav">
           <a className={view === 'register' ? 'is-active' : ''} href="#register" aria-current={view === 'register' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('register'); }}><span aria-hidden="true">▦</span> Register</a>
           <a className={view === 'transactions' ? 'is-active' : ''} href="#transactions" aria-current={view === 'transactions' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('transactions'); }}><span aria-hidden="true">◷</span> Transactions</a>
-          <a href="#orders" onClick={(e) => { e.preventDefault(); setNotice('Online order queue integration is the next module.'); }}><span aria-hidden="true">≡</span> Orders</a>
+          <a className={view === 'orders' ? 'is-active' : ''} href="#orders" aria-current={view === 'orders' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('orders'); setOrdersNotice(''); }}><span aria-hidden="true">≡</span> Orders</a>
           <a className={view === 'shifts' ? 'is-active' : ''} href="#shifts" aria-current={view === 'shifts' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('shifts'); void refreshShift(); }}><span aria-hidden="true">▤</span> Shifts</a>
         </nav>
         <div className="pos-sidebar-bottom"><div className="pos-environment"><span className="status-dot" /> {connectionStatus === 'connected' ? 'Live restaurant data' : connectionStatus === 'error' ? 'Connection issue' : 'Prototype environment'}</div><p>Restaurant operations, connected.</p></div>
       </aside>
       <main className="pos-main" id={view}>
-        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
+        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : view === 'orders' ? 'Orders' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
             try { await signOutPos(); }
             finally {
               setAuthenticated(false);
@@ -321,6 +374,12 @@ export function PosApp() {
               setLastSaleItems([]);
               pendingSaleKey.current = null;
               salesRequestId.current += 1;
+              ordersRequestId.current += 1;
+              setOrders([]);
+              setOrdersError('');
+              setOrdersNotice('');
+              setOrdersLoading(false);
+              setBusyOrderId('');
               setSales([]);
               setSalesLoading(false);
               setSalesError('');
@@ -364,6 +423,39 @@ export function PosApp() {
             <section className="transactions-panel"><div className="transactions-heading"><div><h2>Sales history</h2><p>{session?.branchName ?? 'Authorized branch'} · Most recent first</p></div><span className="catalog-count">{filteredSales.length} of {sales.length} records</span></div>
               <div className="transactions-toolbar"><label className="transactions-search"><span aria-hidden="true">⌕</span><input type="search" value={salesSearch} onChange={(event) => setSalesSearch(event.target.value)} placeholder="Search receipt, item, date, or total" aria-label="Search transactions" />{salesSearch && <button type="button" onClick={() => setSalesSearch('')} aria-label="Clear transaction search">×</button>}</label></div>
               {salesLoading ? <p className="transactions-empty">Loading saved transactions…</p> : sales.length === 0 ? <p className="transactions-empty">No saved cash sales found for this branch.</p> : filteredSales.length === 0 ? <p className="transactions-empty">No transactions match “{escapeHtml(salesSearch)}”. Try a receipt number, item name, date, or total.</p> : <div className="transactions-table-wrap"><table className="transactions-table"><thead><tr><th>Receipt</th><th>Date</th><th>Items</th><th>Payment</th><th>Total</th><th>Receipt</th></tr></thead><tbody>{filteredSales.map((sale) => <tr key={sale.id}><td><strong>{saleLabel(sale)}</strong></td><td>{new Date(sale.created_at).toLocaleString()}</td><td>{sale.items.map((item) => `${item.item_name_snapshot} ×${item.quantity}`).join(', ')}</td><td><span className="paid-pill">PAID · CASH</span></td><td><strong>{formatPhp(moneyFromCentavos(sale.total_centavos))}</strong></td><td><button className="text-button" type="button" onClick={() => printReceipt(sale)}>Print</button></td></tr>)}</tbody></table></div>}
+            </section>
+          </> : view === 'orders' ? <>
+            <section className="transactions-panel">
+              <div className="transactions-heading">
+                <div><h2>Online orders</h2><p>{session?.branchName ?? 'Authorized branch'} · Orders remain managed by Web2table.</p></div>
+                <button className="text-button" type="button" onClick={() => void loadOrders()} disabled={ordersLoading}>{ordersLoading ? 'Refreshing…' : 'Refresh'}</button>
+              </div>
+              <div className="transactions-toolbar">
+                <div className="cash-shortcuts" role="group" aria-label="Order filter">
+                  <button type="button" className={ordersFilter === 'active' ? 'is-selected' : ''} aria-pressed={ordersFilter === 'active'} onClick={() => setOrdersFilter('active')}>Active orders</button>
+                  <button type="button" className={ordersFilter === 'all' ? 'is-selected' : ''} aria-pressed={ordersFilter === 'all'} onClick={() => setOrdersFilter('all')}>All orders</button>
+                  <span className="catalog-count">{orders.length} orders</span>
+                </div>
+              </div>
+              {ordersError && <div className="pos-notice" role="alert">{ordersError}</div>}
+              {ordersNotice && <div className="pos-notice" role="status">{ordersNotice}</div>}
+              {ordersLoading && orders.length === 0 ? <p className="transactions-empty">Loading orders from your authorized branch…</p>
+                : orders.length === 0 ? <p className="transactions-empty">No {ordersFilter === 'active' ? 'active ' : ''}online orders for this branch.</p>
+                : <div className="transactions-table-wrap"><table className="transactions-table"><thead><tr><th>Order</th><th>Placed</th><th>Customer</th><th>Fulfilment</th><th>Items</th><th>Payment</th><th>Total</th><th>Status / Actions</th></tr></thead><tbody>
+                  {orders.map((order) => <tr key={order.id}>
+                    <td><strong>#{order.order_number}</strong></td>
+                    <td>{new Date(order.created_at).toLocaleString()}</td>
+                    <td><strong>{order.customer_name}</strong><br /><span>{order.customer_phone}</span></td>
+                    <td>{order.order_type.replaceAll('_', ' ')}{order.delivery_address ? <><br /><span>{order.delivery_address}</span></> : null}</td>
+                    <td>{order.items.map((item) => `${item.item_name} ×${item.quantity}`).join(', ')}</td>
+                    <td>{order.payment_status.replaceAll('_', ' ')}{order.payment_method ? <><br /><span>{order.payment_method}</span></> : null}</td>
+                    <td><strong>{order.total_centavos === null ? 'Awaiting confirmation' : formatPhp(moneyFromCentavos(order.total_centavos))}</strong></td>
+                    <td><span className="paid-pill">{order.order_status.replaceAll('_', ' ')}</span>
+                      {order.order_status === 'pending_confirmation' && <div className="cash-shortcuts"><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'confirm')}>{busyOrderId === order.id ? 'Saving…' : 'Confirm'}</button><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'reject')}>Reject</button></div>}
+                      {order.order_status === 'confirmed' && <div className="cash-shortcuts"><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'cancel')}>Cancel</button></div>}
+                    </td>
+                  </tr>)}
+                </tbody></table></div>}
             </section>
           </> : <>
             
