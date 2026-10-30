@@ -62,6 +62,7 @@ export function PosApp() {
   const [countedCash, setCountedCash] = useState('');
   const [shiftCloseNote, setShiftCloseNote] = useState('');
   const [lastClosedShift, setLastClosedShift] = useState<PosClosedShift | null>(null);
+  const [customerName, setCustomerName] = useState('');
   const [loyaltySearch, setLoyaltySearch] = useState('');
   const [loyaltyCustomers, setLoyaltyCustomers] = useState<PosLoyaltyCustomer[]>([]);
   const [loyaltyCustomer, setLoyaltyCustomer] = useState<PosLoyaltyCustomer | null>(null);
@@ -335,7 +336,7 @@ export function PosApp() {
 
   async function selectLoyaltyCustomer(customer: PosLoyaltyCustomer) {
     if (!apiClient || !session) return;
-    setLoyaltyCustomer(customer); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
+    setLoyaltyCustomer(customer); setCustomerName(customer.displayName); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
     try {
       const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerUserId);
       setLoyaltyBalance(balance);
@@ -490,6 +491,10 @@ export function PosApp() {
               </section>
               <aside className="order-panel" aria-label="Current order">
                 <div className="order-panel-heading"><div><p className="pos-eyebrow">CURRENT SALE</p><h2>New order</h2></div><button className="text-button" type="button" onClick={() => { setCart([]); setNotice(''); }} disabled={cart.length === 0}>Clear</button></div>
+                <section className="pos-customer-panel" aria-label="Sale customer">
+                  <label htmlFor="pos-customer-name">Customer name <span>OPTIONAL</span></label>
+                  <input id="pos-customer-name" name="customerName" autoComplete="name" maxLength={120} value={customerName} onChange={(event) => setCustomerName(event.target.value.slice(0, 120))} placeholder="Enter customer name" />
+                </section>
                 <section className="pos-loyalty-panel" aria-label="Customer loyalty">
                   <div className="pos-loyalty-heading"><strong>Customer loyalty</strong><span>OPTIONAL</span></div>
                   {loyaltyCustomer ? <div className="pos-loyalty-selected">
@@ -504,7 +509,7 @@ export function PosApp() {
                   {loyaltyBalance && <div className="pos-loyalty-balance"><span>Available points</span><strong>{loyaltyBalance.account.points_balance.toLocaleString()}</strong><small>{loyaltyBalance.settings.enabled ? (loyaltyBalance.settings.redemption_enabled ? 'Rewards enabled' : 'Earning enabled · redemption off') : 'Loyalty is disabled for this restaurant'}</small></div>}
                   {loyaltyError && <p className="pos-loyalty-error" role="status">{loyaltyError}</p>}
                 </section>
-                <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>{loyaltyCustomer?.displayName ?? 'Walk-in customer'}</strong><span>{session ? `${session.branchName} · Draft` : 'In-store order · Draft'}</span></div><span className="draft-pill">DRAFT</span></div>
+                <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>{customerName.trim() || loyaltyCustomer?.displayName || 'Walk-in customer'}</strong><span>{session ? `${session.branchName} · Draft` : 'In-store order · Draft'}</span></div><span className="draft-pill">DRAFT</span></div>
                 <div className="order-lines-heading"><span>ITEM</span><span>QTY</span><span className="align-right">TOTAL</span></div>
                 <div className="order-lines">{cart.length === 0 ? <div className="empty-order"><span className="empty-order-icon" aria-hidden="true">▤</span><strong>Your order is empty</strong><p>Select items from the menu to get started.</p></div> : cart.map((line) => <div className="order-line" key={line.product.id}><div className="order-line-product"><strong>{line.product.name}</strong><span>{formatPhp(line.product.price)} each</span></div><div className="quantity-control"><button type="button" onClick={() => changeQuantity(line.product.id, -1)} aria-label={`Remove one ${line.product.name}`}>−</button><span>{line.quantity}</span><button type="button" onClick={() => changeQuantity(line.product.id, 1)} aria-label={`Add one ${line.product.name}`}>+</button></div><strong className="line-total">{formatPhp(multiplyMoney(line.product.price, line.quantity))}</strong></div>)}</div>
                 <div className="order-summary"><div><span>Items</span><span>{itemCount}</span></div><div><span>Subtotal</span><strong>{formatPhp(subtotal)}</strong></div><div><span>Tax and discounts</span><span className="not-configured">Not configured</span></div><div className="order-total"><span>Total</span><strong>{formatPhp(subtotal)}</strong></div></div>
