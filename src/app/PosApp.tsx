@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
-import type { PosCashSaleHistoryItem, PosCashSaleResult, PosSessionContext } from '../integrations/web2table/posApiContract';
+import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
 import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
 import '../styles/pos-auth.css';
@@ -10,7 +10,7 @@ import '../styles/pos-transactions.css';
 
 type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; initials: string };
-type View = 'register' | 'transactions';
+type View = 'register' | 'transactions' | 'shifts';
 const demoProducts: Product[] = [
   { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), initials: 'CB' },
   { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), initials: 'CC' },
@@ -51,6 +51,13 @@ export function PosApp() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState('');
   const [salesSearch, setSalesSearch] = useState('');
+  const [cashierShift, setCashierShift] = useState<PosCashierShift | null>(null);
+  const [shiftLoading, setShiftLoading] = useState(false);
+  const [shiftActionBusy, setShiftActionBusy] = useState(false);
+  const [openingCash, setOpeningCash] = useState('0.00');
+  const [countedCash, setCountedCash] = useState('');
+  const [shiftCloseNote, setShiftCloseNote] = useState('');
+  const [lastClosedShift, setLastClosedShift] = useState<PosClosedShift | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -92,9 +99,13 @@ export function PosApp() {
     async function loadAuthorizedMenu() {
       try {
         const authorizedSession = await client.getSession();
-        const menu = await client.getBranchMenu(authorizedSession.branchId);
+        const [menu, shift] = await Promise.all([
+          client.getBranchMenu(authorizedSession.branchId),
+          client.getCashierShift(authorizedSession.branchId),
+        ]);
         if (!active) return;
         setSession(authorizedSession);
+        setCashierShift(shift.active ? shift : null);
         setProducts(menu.filter((item) => item.available).map((item) => ({
           id: item.id, name: item.name, category: item.categoryName,
           price: moneyFromCentavos(item.unitPriceCentavos),
@@ -111,6 +122,39 @@ export function PosApp() {
     void loadAuthorizedMenu();
     return () => { active = false; };
   }, [apiClient, authenticated]);
+
+  async function refreshShift() {
+    if (!apiClient || !session) return;
+    setShiftLoading(true);
+    try { const shift = await apiClient.getCashierShift(session.branchId); setCashierShift(shift.active ? shift : null); }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Could not load cashier shift.'); }
+    finally { setShiftLoading(false); }
+  }
+
+  async function openShift() {
+    if (!apiClient || !session || shiftActionBusy) return;
+    const amount = Math.round((Number(openingCash) || 0) * 100);
+    if (!Number.isSafeInteger(amount) || amount < 0) { setNotice('Enter a valid opening cash amount.'); return; }
+    setShiftActionBusy(true); setNotice('');
+    try {
+      const shift = await apiClient.openCashierShift(session.branchId, amount);
+      setCashierShift(shift); setOpeningCash('0.00'); setNotice('Cashier shift opened successfully.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not open cashier shift.'); }
+    finally { setShiftActionBusy(false); }
+  }
+
+  async function closeShift() {
+    if (!apiClient || !session || shiftActionBusy) return;
+    const amount = Math.round((Number(countedCash) || 0) * 100);
+    if (!Number.isSafeInteger(amount) || amount < 0 || !countedCash.trim()) { setNotice('Enter the counted cash amount.'); return; }
+    setShiftActionBusy(true); setNotice('');
+    try {
+      const closed = await apiClient.closeCashierShift(session.branchId, amount, shiftCloseNote);
+      setLastClosedShift(closed); setCashierShift(null); setCountedCash(''); setShiftCloseNote('');
+      setNotice('Cashier shift closed. Review the cash variance below.');
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not close cashier shift.'); }
+    finally { setShiftActionBusy(false); }
+  }
 
   async function loadSales() {
     if (!apiClient || !session) return;
@@ -148,7 +192,7 @@ export function PosApp() {
   function changeQuantity(productId: string, delta: number) { setCart((current) => changeCartQuantity(current, productId, delta)); }
 
   async function completeCashSale() {
-    if (!apiClient || !session || cart.length === 0 || receivedCentavos < dueCentavos || submittingSale) return;
+    if (!apiClient || !session || !cashierShift?.active || cart.length === 0 || receivedCentavos < dueCentavos || submittingSale) return;
     setSubmittingSale(true); setNotice('');
     try {
       const result = await apiClient.createCashSale({
@@ -192,12 +236,12 @@ export function PosApp() {
           <a className={view === 'register' ? 'is-active' : ''} href="#register" aria-current={view === 'register' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('register'); }}><span aria-hidden="true">▦</span> Register</a>
           <a className={view === 'transactions' ? 'is-active' : ''} href="#transactions" aria-current={view === 'transactions' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('transactions'); }}><span aria-hidden="true">◷</span> Transactions</a>
           <a href="#orders" onClick={(e) => { e.preventDefault(); setNotice('Online order queue integration is the next module.'); }}><span aria-hidden="true">≡</span> Orders</a>
-          <a href="#shifts" onClick={(e) => { e.preventDefault(); setNotice('Shift and cash-drawer reconciliation is not implemented yet.'); }}><span aria-hidden="true">▤</span> Shifts</a>
+          <a className={view === 'shifts' ? 'is-active' : ''} href="#shifts" aria-current={view === 'shifts' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('shifts'); void refreshShift(); }}><span aria-hidden="true">▤</span> Shifts</a>
         </nav>
         <div className="pos-sidebar-bottom"><div className="pos-environment"><span className="status-dot" /> {connectionStatus === 'connected' ? 'Live restaurant data' : connectionStatus === 'error' ? 'Connection issue' : 'Prototype environment'}</div><p>Restaurant operations, connected.</p></div>
       </aside>
       <main className="pos-main" id={view}>
-        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : 'Transactions'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => { await signOutPos(); setAuthenticated(false); setSession(null); setProducts([]); setCart([]); setConnectionStatus('loading'); }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div></header>
+        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => { await signOutPos(); setAuthenticated(false); setSession(null); setProducts([]); setCart([]); setConnectionStatus('loading'); }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div></header>
         <div className="pos-content">
           {view === 'register' ? <>
             <section className="pos-page-heading"><div><p className="pos-eyebrow">POINT OF SALE</p><h1>Register</h1><p className="pos-subtitle">Build an order, collect cash, and print the receipt.</p></div><div className={`register-status register-status-${connectionStatus}`}><span className="status-dot" /> {connectionStatus === 'loading' ? 'Connecting to register…' : connectionStatus === 'connected' ? `Connected · ${session?.branchName ?? 'Authorized branch'}` : connectionStatus === 'error' ? 'Register connection failed' : 'Demo mode · Checkout disabled'}</div></section>
@@ -216,22 +260,42 @@ export function PosApp() {
                 <div className="order-lines">{cart.length === 0 ? <div className="empty-order"><span className="empty-order-icon" aria-hidden="true">▤</span><strong>Your order is empty</strong><p>Select items from the menu to get started.</p></div> : cart.map((line) => <div className="order-line" key={line.product.id}><div className="order-line-product"><strong>{line.product.name}</strong><span>{formatPhp(line.product.price)} each</span></div><div className="quantity-control"><button type="button" onClick={() => changeQuantity(line.product.id, -1)} aria-label={`Remove one ${line.product.name}`}>−</button><span>{line.quantity}</span><button type="button" onClick={() => changeQuantity(line.product.id, 1)} aria-label={`Add one ${line.product.name}`}>+</button></div><strong className="line-total">{formatPhp(multiplyMoney(line.product.price, line.quantity))}</strong></div>)}</div>
                 <div className="order-summary"><div><span>Items</span><span>{itemCount}</span></div><div><span>Subtotal</span><strong>{formatPhp(subtotal)}</strong></div><div><span>Tax and discounts</span><span className="not-configured">Not configured</span></div><div className="order-total"><span>Total</span><strong>{formatPhp(subtotal)}</strong></div>{connectionStatus === 'demo' && <p className="tax-disclaimer">Demo prices are for preview only. Use the authorized live menu for actual sales.</p>}</div>
                 {notice && <div className="pos-notice" role="status">{notice}</div>}
-                <button className="checkout-button" type="button" disabled={connectionStatus !== 'connected' || cart.length === 0} onClick={() => { setCashReceived(''); setCheckoutOpen(true); }}>Checkout · Cash <span aria-hidden="true">→</span></button>
-                <p className="checkout-caption">{connectionStatus === 'connected' ? 'Cash sales are saved by the trusted server.' : 'Connect to the authorized POS API to accept a sale.'}</p>
+                <button className="checkout-button" type="button" disabled={connectionStatus !== 'connected' || !cashierShift?.active || cart.length === 0} onClick={() => { setCashReceived(''); setCheckoutOpen(true); }}>Checkout · Cash <span aria-hidden="true">→</span></button>
+                <p className="checkout-caption">{connectionStatus !== 'connected' ? 'Connect to the authorized POS API to accept a sale.' : !cashierShift?.active ? 'Open a cashier shift before accepting cash sales.' : 'Cash sales are saved to your active shift.'}</p>
                 {lastSale && <button className="text-button receipt-action" type="button" onClick={() => printReceipt(lastSale)}>Print last receipt · {saleLabel(lastSale)}</button>}
               </aside>
             </div>
-          </> : <>
+          </> : view === 'transactions' ? <>
             <section className="pos-page-heading"><div><p className="pos-eyebrow">CASH MANAGEMENT</p><h1>Transactions</h1><p className="pos-subtitle">Saved cash sales for your authorized branch.</p></div><button className="text-button" type="button" onClick={() => void loadSales()} disabled={salesLoading}>{salesLoading ? 'Refreshing…' : 'Refresh history'}</button></section>
             {salesError && <div className="pos-notice" role="alert">{salesError}</div>}
             <section className="transactions-panel"><div className="transactions-heading"><div><h2>Sales history</h2><p>{session?.branchName ?? 'Authorized branch'} · Most recent first</p></div><span className="catalog-count">{filteredSales.length} of {sales.length} records</span></div>
               <div className="transactions-toolbar"><label className="transactions-search"><span aria-hidden="true">⌕</span><input type="search" value={salesSearch} onChange={(event) => setSalesSearch(event.target.value)} placeholder="Search receipt, item, date, or total" aria-label="Search transactions" />{salesSearch && <button type="button" onClick={() => setSalesSearch('')} aria-label="Clear transaction search">×</button>}</label></div>
               {salesLoading ? <p className="transactions-empty">Loading saved transactions…</p> : sales.length === 0 ? <p className="transactions-empty">No saved cash sales found for this branch.</p> : filteredSales.length === 0 ? <p className="transactions-empty">No transactions match “{escapeHtml(salesSearch)}”. Try a receipt number, item name, date, or total.</p> : <div className="transactions-table-wrap"><table className="transactions-table"><thead><tr><th>Receipt</th><th>Date</th><th>Items</th><th>Payment</th><th>Total</th><th>Receipt</th></tr></thead><tbody>{filteredSales.map((sale) => <tr key={sale.id}><td><strong>{saleLabel(sale)}</strong></td><td>{new Date(sale.created_at).toLocaleString()}</td><td>{sale.items.map((item) => `${item.item_name_snapshot} ×${item.quantity}`).join(', ')}</td><td><span className="paid-pill">PAID · CASH</span></td><td><strong>{formatPhp(moneyFromCentavos(sale.total_centavos))}</strong></td><td><button className="text-button" type="button" onClick={() => printReceipt(sale)}>Print</button></td></tr>)}</tbody></table></div>}
             </section>
+          </> : <>
+            <section className="pos-page-heading"><div><p className="pos-eyebrow">CASH MANAGEMENT</p><h1>Cashier shifts</h1><p className="pos-subtitle">Open the drawer, track cash sales, and reconcile at close.</p></div><button className="text-button" type="button" onClick={() => void refreshShift()} disabled={shiftLoading}>{shiftLoading ? 'Refreshing…' : 'Refresh shift'}</button></section>
+            {notice && <div className="pos-notice" role="status">{notice}</div>}
+            <section className="transactions-panel">
+              <div className="transactions-heading"><div><h2>{cashierShift?.active ? 'Active shift' : 'No active shift'}</h2><p>{session?.branchName ?? 'Authorized branch'} · {session?.displayName ?? 'Cashier'}</p></div><span className={cashierShift?.active ? 'paid-pill' : 'catalog-count'}>{cashierShift?.active ? 'OPEN' : 'CLOSED'}</span></div>
+              {cashierShift?.active ? <div className="transactions-toolbar">
+                <p>Opened {cashierShift.opened_at ? new Date(cashierShift.opened_at).toLocaleString() : 'recently'}</p>
+                <p>Opening cash: <strong>{formatPhp(moneyFromCentavos(cashierShift.opening_cash_centavos ?? 0))}</strong></p>
+                <p>Cash sales: <strong>{formatPhp(moneyFromCentavos(cashierShift.cash_sales_centavos ?? 0))}</strong></p>
+                <p>Expected cash: <strong>{formatPhp(moneyFromCentavos(cashierShift.expected_cash_centavos ?? cashierShift.opening_cash_centavos ?? 0))}</strong></p>
+                <label className="cash-input-label" htmlFor="counted-cash">Counted cash at close (PHP)</label><div className="cash-input-wrap"><span>₱</span><input id="counted-cash" inputMode="decimal" value={countedCash} onChange={(event) => setCountedCash(event.target.value.replace(/[^0-9.]/g, '').replace(/(\\..*)\\./g, '$1'))} placeholder="0.00" /></div>
+                <label className="cash-input-label" htmlFor="shift-close-note">Closing note (optional)</label><div className="cash-input-wrap"><input id="shift-close-note" value={shiftCloseNote} onChange={(event) => setShiftCloseNote(event.target.value.slice(0, 500))} placeholder="Explain any cash difference" /></div>
+                <button className="checkout-button" type="button" disabled={shiftActionBusy || !countedCash.trim()} onClick={() => void closeShift()}>{shiftActionBusy ? 'Closing shift…' : 'Close shift and reconcile'} <span aria-hidden="true">→</span></button>
+              </div> : <div className="transactions-toolbar">
+                <p>Start a shift before recording cash sales. The opening float and every sale will be used for reconciliation.</p>
+                <label className="cash-input-label" htmlFor="opening-cash">Opening cash (PHP)</label><div className="cash-input-wrap"><span>₱</span><input id="opening-cash" inputMode="decimal" value={openingCash} onChange={(event) => setOpeningCash(event.target.value.replace(/[^0-9.]/g, '').replace(/(\\..*)\\./g, '$1'))} placeholder="0.00" /></div>
+                <button className="checkout-button" type="button" disabled={shiftActionBusy || !openingCash.trim()} onClick={() => void openShift()}>{shiftActionBusy ? 'Opening shift…' : 'Open cashier shift'} <span aria-hidden="true">→</span></button>
+              </div>}
+            </section>
+            {lastClosedShift && <section className="transactions-panel" style={{ marginTop: 16 }}><div className="transactions-heading"><div><h2>Last shift reconciliation</h2><p>{new Date(lastClosedShift.closed_at).toLocaleString()}</p></div><span className={lastClosedShift.cash_variance_centavos === 0 ? 'paid-pill' : 'catalog-count'}>{lastClosedShift.cash_variance_centavos === 0 ? 'BALANCED' : 'VARIANCE'}</span></div><div className="transactions-toolbar"><p>Expected cash: <strong>{formatPhp(moneyFromCentavos(lastClosedShift.expected_cash_centavos))}</strong></p><p>Counted cash: <strong>{formatPhp(moneyFromCentavos(lastClosedShift.counted_cash_centavos))}</strong></p><p>Difference: <strong>{formatPhp(moneyFromCentavos(Math.abs(lastClosedShift.cash_variance_centavos)))} {lastClosedShift.cash_variance_centavos < 0 ? 'short' : lastClosedShift.cash_variance_centavos > 0 ? 'over' : ''}</strong></p></div></section>}
           </>}
         </div>
       </main>
-      {checkoutOpen && <div className="checkout-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !submittingSale) setCheckoutOpen(false); }}><section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title"><div className="checkout-dialog-heading"><div><p className="pos-eyebrow">PAYMENT METHOD · CASH</p><h2 id="checkout-title">Complete sale</h2></div><button type="button" className="dialog-close" onClick={() => setCheckoutOpen(false)} disabled={submittingSale} aria-label="Close checkout">×</button></div><div className="checkout-due"><span>Amount due</span><strong>{formatPhp(subtotal)}</strong></div><label className="cash-input-label" htmlFor="cash-received">Cash received (PHP)</label><div className="cash-input-wrap"><span>₱</span><input id="cash-received" inputMode="decimal" autoFocus value={cashReceived} onChange={(e) => setCashReceived(e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))} placeholder="0.00" /></div><div className="cash-shortcuts-group"><p className="cash-shortcuts-label">Quick tender</p><div className="cash-shortcuts">{Array.from(new Set([dueCentavos, Math.ceil(dueCentavos / 5000) * 5000, Math.ceil(dueCentavos / 10000) * 10000, 50000, 100000])).filter((amount) => amount >= dueCentavos && amount > 0).sort((a, b) => a - b).slice(0, 5).map((amount) => <button key={amount} type="button" className={receivedCentavos === amount ? 'is-selected' : ''} aria-pressed={receivedCentavos === amount} onClick={() => setCashReceived((amount / 100).toFixed(2))}>{amount === dueCentavos ? 'Exact · ' : ''}{formatPhp(moneyFromCentavos(amount))}</button>)}</div></div><div className="change-row"><span>{changeCentavos >= 0 ? 'Change due' : 'Remaining balance'}</span><strong className={changeCentavos < 0 ? 'amount-short' : ''}>{formatPhp(moneyFromCentavos(Math.abs(changeCentavos)))}</strong></div>{notice && <div className="pos-notice" role="status">{notice}</div>}<button className="checkout-button" type="button" disabled={submittingSale || receivedCentavos < dueCentavos || dueCentavos <= 0} onClick={() => void completeCashSale()}>{submittingSale ? 'Saving sale…' : 'Confirm cash payment'} <span aria-hidden="true">→</span></button><p className="checkout-caption">The server revalidates menu prices and branch authorization before saving.</p></section></div>}
+      {checkoutOpen && cashierShift?.active && <div className="checkout-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !submittingSale) setCheckoutOpen(false); }}><section className="checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title"><div className="checkout-dialog-heading"><div><p className="pos-eyebrow">PAYMENT METHOD · CASH</p><h2 id="checkout-title">Complete sale</h2></div><button type="button" className="dialog-close" onClick={() => setCheckoutOpen(false)} disabled={submittingSale} aria-label="Close checkout">×</button></div><div className="checkout-due"><span>Amount due</span><strong>{formatPhp(subtotal)}</strong></div><label className="cash-input-label" htmlFor="cash-received">Cash received (PHP)</label><div className="cash-input-wrap"><span>₱</span><input id="cash-received" inputMode="decimal" autoFocus value={cashReceived} onChange={(e) => setCashReceived(e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1'))} placeholder="0.00" /></div><div className="cash-shortcuts-group"><p className="cash-shortcuts-label">Quick tender</p><div className="cash-shortcuts">{Array.from(new Set([dueCentavos, Math.ceil(dueCentavos / 5000) * 5000, Math.ceil(dueCentavos / 10000) * 10000, 50000, 100000])).filter((amount) => amount >= dueCentavos && amount > 0).sort((a, b) => a - b).slice(0, 5).map((amount) => <button key={amount} type="button" className={receivedCentavos === amount ? 'is-selected' : ''} aria-pressed={receivedCentavos === amount} onClick={() => setCashReceived((amount / 100).toFixed(2))}>{amount === dueCentavos ? 'Exact · ' : ''}{formatPhp(moneyFromCentavos(amount))}</button>)}</div></div><div className="change-row"><span>{changeCentavos >= 0 ? 'Change due' : 'Remaining balance'}</span><strong className={changeCentavos < 0 ? 'amount-short' : ''}>{formatPhp(moneyFromCentavos(Math.abs(changeCentavos)))}</strong></div>{notice && <div className="pos-notice" role="status">{notice}</div>}<button className="checkout-button" type="button" disabled={submittingSale || receivedCentavos < dueCentavos || dueCentavos <= 0} onClick={() => void completeCashSale()}>{submittingSale ? 'Saving sale…' : 'Confirm cash payment'} <span aria-hidden="true">→</span></button><p className="checkout-caption">The server revalidates menu prices and branch authorization before saving.</p></section></div>}
     </div>
   );
 }
