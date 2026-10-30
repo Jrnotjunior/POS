@@ -9,7 +9,7 @@ import '../styles/pos-auth.css';
 import '../styles/pos-transactions.css';
 
 type Category = string;
-type Product = { id: string; name: string; category: string; price: Money; initials: string };
+type Product = { id: string; name: string; category: string; price: Money; imageUrl: string | null };
 type View = 'register' | 'transactions' | 'shifts';
 const demoProducts: Product[] = [
   { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), initials: 'CB' },
@@ -109,7 +109,7 @@ export function PosApp() {
         setProducts(menu.filter((item) => item.available).map((item) => ({
           id: item.id, name: item.name, category: item.categoryName,
           price: moneyFromCentavos(item.unitPriceCentavos),
-          initials: item.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase(),
+          imageUrl: item.imagePath ? `https://wvibrchebfwirbgkcnbr.supabase.co/storage/v1/object/public/menu-images/${item.imagePath.split('/').map(encodeURIComponent).join('/')}` : null,
         })));
         setConnectionStatus('connected');
       } catch (error) {
@@ -250,7 +250,7 @@ export function PosApp() {
                 <div className="catalog-heading"><div><h2>Menu</h2><p>Select an item to add it to the order.</p></div><span className="catalog-count">{visibleProducts.length} items</span></div>
                 <label className="product-search"><span aria-hidden="true">⌕</span><input ref={searchInputRef} type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu items" aria-label="Search menu items" /><kbd>⌘ K</kbd></label>
                 <div className="category-tabs" role="group" aria-label="Filter by category">{categoryOptions.map((item) => <button key={item} type="button" className={category === item ? 'is-selected' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item}</button>)}</div>
-                <div className="product-grid">{visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}><span className={`product-art ${product.category.toLowerCase().includes('rice') ? 'product-art-rice' : product.category.toLowerCase().includes('coffee') ? 'product-art-coffee' : product.category.toLowerCase().includes('pasta') ? 'product-art-pasta' : product.category.toLowerCase().includes('pastr') ? 'product-art-pastry' : product.category.toLowerCase().includes('frappe') ? 'product-art-frappe' : 'product-art-default'}`} aria-hidden="true"><span>{product.initials}</span></span><span className="product-card-copy"><span className="product-name">{product.name}</span><span className="product-category">{product.category}</span><strong>{formatPhp(product.price)}</strong></span><span className="add-product" aria-hidden="true">+</span></button>)}{visibleProducts.length === 0 && <div className="catalog-empty">{connectionStatus === 'loading' ? 'Loading your restaurant menu…' : connectionStatus === 'error' ? 'The live menu could not be loaded. Please retry your connection.' : products.length === 0 ? 'No available menu items for this branch.' : 'No menu items match your search.'}</div>}</div>
+                <div className="product-grid">{visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}><span className="product-art">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /> : <span className="product-art-fallback" aria-hidden="true">No image</span>}</span><span className="product-card-copy"><span className="product-name">{product.name}</span><span className="product-category">{product.category}</span><strong>{formatPhp(product.price)}</strong></span><span className="add-product" aria-hidden="true">+</span></button>)}{visibleProducts.length === 0 && <div className="catalog-empty">{connectionStatus === 'loading' ? 'Loading your restaurant menu…' : connectionStatus === 'error' ? 'The live menu could not be loaded. Please retry your connection.' : products.length === 0 ? 'No available menu items for this branch.' : 'No menu items match your search.'}</div>}</div>
                 {connectionStatus === 'demo' && <p className="sample-data-note">Sample menu only · Cash checkout is disabled outside the trusted API.</p>}{connectionStatus === 'loading' && <p className="sample-data-note">Loading menu from your authorized branch…</p>}{connectionStatus === 'error' && <p className="sample-data-note">Live menu unavailable. Checkout remains disabled.</p>}
               </section>
               <aside className="order-panel" aria-label="Current order">
