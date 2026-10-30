@@ -31,7 +31,9 @@ function roundedRatio(numerator: number, denominator: number): number {
   if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) || denominator <= 0) {
     throw new RangeError('Tax calculation exceeds the safe integer range.');
   }
-  const result = Math.floor((numerator + Math.floor(denominator / 2)) / denominator);
+  const roundedNumerator = numerator + Math.floor(denominator / 2);
+  if (!Number.isSafeInteger(roundedNumerator)) throw new RangeError('Tax calculation exceeds the safe integer range.');
+  const result = Math.floor(roundedNumerator / denominator);
   if (!Number.isSafeInteger(result)) throw new RangeError('Tax calculation exceeds the safe integer range.');
   return result;
 }
