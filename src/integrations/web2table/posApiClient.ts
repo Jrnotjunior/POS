@@ -8,6 +8,7 @@ import {
 export type PosApiClientOptions = Readonly<{
   baseUrl: string;
   fetcher?: typeof fetch;
+  getAccessToken?: () => Promise<string | null>;
 }>;
 
 export class PosApiClientError extends Error {
@@ -84,12 +85,15 @@ async function readError(response: Response): Promise<PosApiClientError> {
 export function createPosApiClient(options: PosApiClientOptions) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const fetcher = options.fetcher ?? fetch;
+  const getAccessToken = options.getAccessToken ?? (async () => null);
 
   async function getJson(path: string): Promise<unknown> {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new PosApiClientError('Sign in to Web2table and complete MFA to access the POS.', 401, 'UNAUTHENTICATED');
     const response = await fetcher(`${baseUrl}${path}`, {
       method: 'GET',
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
     });
     if (!response.ok) throw await readError(response);
     try {
@@ -121,9 +125,12 @@ export function createPosApiClient(options: PosApiClientOptions) {
   };
 }
 
-const configuredBaseUrl = import.meta.env.VITE_POS_API_BASE_URL?.trim() ?? '';
+const configuredBaseUrl = (import.meta.env.VITE_POS_API_BASE_URL?.trim() || `${import.meta.env.VITE_SUPABASE_URL?.trim() ?? ''}/functions/v1/pos-api`).replace(/\\/$/, '');
 
 /** Null means demo mode is selected; it does not imply a live API exists. */
 export function createConfiguredPosApiClient(): ReturnType<typeof createPosApiClient> | null {
-  return configuredBaseUrl ? createPosApiClient({ baseUrl: configuredBaseUrl }) : null;
+  return configuredBaseUrl && !configuredBaseUrl.startsWith('/functions') ? createPosApiClient({ baseUrl: configuredBaseUrl, getAccessToken: async () => {
+    const { getCurrentAccessToken } = await import('./supabaseAuth');
+    return getCurrentAccessToken();
+  } }) : null;
 }
