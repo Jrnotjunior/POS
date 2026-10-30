@@ -102,7 +102,9 @@ Deno.serve(async(req:Request)=>{
     const isShiftClose=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/close");
     const isFiscalProfileGet=req.method==="GET"&&path.endsWith("/api/pos/v1/fiscal-profile");
     const isFiscalProfileSave=req.method==="POST"&&path.endsWith("/api/pos/v1/fiscal-profile");
-    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    const isFiscalTaxPoliciesGet=req.method==="GET"&&path.endsWith("/api/pos/v1/fiscal-tax-policies");
+    const isFiscalTaxPolicyCreate=req.method==="POST"&&path.endsWith("/api/pos/v1/fiscal-tax-policies");
+    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave&&!isFiscalTaxPoliciesGet&&!isFiscalTaxPolicyCreate)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
     if(isShiftGet||isShiftOpen||isShiftClose){
       let body:Rec={};
       if(isShiftOpen||isShiftClose){
@@ -195,6 +197,15 @@ Deno.serve(async(req:Request)=>{
         return response(req,err("VALIDATION_ERROR","A valid order and supported cashier action are required.",requestId),400,requestId);
     }
     let fiscalProfileBody:Rec={};
+    let fiscalTaxPolicyBody:Rec={};
+    if(isFiscalTaxPolicyCreate){
+      const parsedBody=await readJsonObject(req,30000);
+      if(!parsedBody.ok){
+        const tooLarge=parsedBody.reason==="too_large";
+        return response(req,err("VALIDATION_ERROR",tooLarge?"The fiscal tax policy request is too large.":"Provide a valid JSON tax policy.",requestId),tooLarge?413:400,requestId);
+      }
+      fiscalTaxPolicyBody=parsedBody.value;
+    }
     if(isFiscalProfileSave){
       const parsedBody=await readJsonObject(req,20000);
       if(!parsedBody.ok){
@@ -209,14 +220,14 @@ Deno.serve(async(req:Request)=>{
     if(membershipError)throw membershipError;
     if(!memberships?.length)return response(req,err("FORBIDDEN","Your account does not have an active owner or cashier POS permission.",requestId),403,requestId);
     const ordersBranch=new URL(req.url).searchParams.get("branchId")??"";
-    const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):(isOrders||isFiscalProfileGet)?ordersBranch:(isOrderTransition?String(orderActionBody.branchId??""):isFiscalProfileSave?String(fiscalProfileBody.branchId??""):"");
-    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
+    const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):(isOrders||isFiscalProfileGet||isFiscalTaxPoliciesGet)?ordersBranch:(isOrderTransition?String(orderActionBody.branchId??""):isFiscalProfileSave?String(fiscalProfileBody.branchId??""):(isFiscalTaxPolicyCreate?String(fiscalTaxPolicyBody.branchId??""):""));
+    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
     let context:{tenantId:string;tenantName:string;branchId:string;branchName:string}|null=null;
     for(const m of memberships){
       const {data:t,error:te}=await admin.from("tenants").select("id,name").eq("id",m.tenant_id).eq("status","active").maybeSingle();
       if(te)throw te;if(!t)continue;
       let q=admin.from("branches").select("id,tenant_id,name").eq("tenant_id",t.id).eq("is_active",true);
-      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave)q=q.eq("id",requestedBranch);
+      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate)q=q.eq("id",requestedBranch);
       if(m.role==="cashier") {
         const {data:assigned,error:assignedError}=await admin.from("branch_memberships").select("branch_id").eq("tenant_id",t.id).eq("user_id",auth.user.id);
         if(assignedError)throw assignedError;
@@ -288,6 +299,68 @@ Deno.serve(async(req:Request)=>{
       return response(req,{data:profile,requestId},200,requestId);
     }
 
+    if(isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate){
+      if(role!=="restaurant_owner")return response(req,err("FORBIDDEN","Only a restaurant owner can manage fiscal tax policies.",requestId),403,requestId);
+      const {data:profile,error:profileError}=await admin.from("pos_fiscal_profiles").select("id")
+        .eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).maybeSingle();
+      if(profileError)throw profileError;
+      if(!profile)return response(req,err("CONFLICT","Save the taxpayer profile before configuring a tax policy.",requestId),409,requestId);
+      if(isFiscalTaxPoliciesGet){
+        const {data:policies,error:policiesError}=await admin.from("pos_fiscal_tax_policies")
+          .select("id,tenant_id,branch_id,fiscal_profile_id,policy_name,policy_version,status,effective_from,effective_until,currency_code,rounding_mode,rules,review_reference,reviewed_by,reviewed_at,created_at,updated_at")
+          .eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).order("policy_version",{ascending:false}).limit(50);
+        if(policiesError)throw policiesError;
+        return response(req,{data:policies??[],requestId},200,requestId);
+      }
+      const body=fiscalTaxPolicyBody;
+      const policyName=typeof body.policyName==="string"?body.policyName.trim():"";
+      const rules=body.rules;
+      const effectiveFrom=typeof body.effectiveFrom==="string"?body.effectiveFrom.trim():"";
+      const effectiveUntil=typeof body.effectiveUntil==="string"&&body.effectiveUntil.trim()?body.effectiveUntil.trim():null;
+      const isoDate=(v:string)=>/^\\d{4}-\\d{2}-\\d{2}T/.test(v)&&Number.isFinite(Date.parse(v));
+      if(policyName.length<2||policyName.length>120||!Array.isArray(rules)||rules.length<1||rules.length>50
+        ||(effectiveFrom&&!isoDate(effectiveFrom))||(effectiveUntil!==null&&!isoDate(effectiveUntil))
+        ||(effectiveFrom&&effectiveUntil&&Date.parse(effectiveUntil)<=Date.parse(effectiveFrom))){
+        return response(req,err("VALIDATION_ERROR","Provide a policy name, one to fifty explicit tax rules, and valid effective dates.",requestId),400,requestId);
+      }
+      const normalizedRules:Rec[]=[];
+      const seenCodes=new Set<string>();
+      for(const candidate of rules){
+        if(typeof candidate!=="object"||candidate===null||Array.isArray(candidate))return response(req,err("VALIDATION_ERROR","Each tax rule must be an object.",requestId),400,requestId);
+        const rule=candidate as Rec;
+        const code=typeof rule.code==="string"?rule.code.trim():"";
+        const label=typeof rule.label==="string"?rule.label.trim():"";
+        const treatment=typeof rule.treatment==="string"?rule.treatment.trim():"";
+        const rate=rule.rateBasisPoints;
+        const priceIncludesTax=rule.priceIncludesTax;
+        if(!/^[A-Z0-9_-]{2,40}$/.test(code)||seenCodes.has(code)||label.length<2||label.length>120
+          ||!["taxable","zero_rated","exempt","out_of_scope","requires_review"].includes(treatment)
+          ||!Number.isSafeInteger(rate)||Number(rate)<0||Number(rate)>100000
+          ||typeof priceIncludesTax!=="boolean"){
+          return response(req,err("VALIDATION_ERROR","Each rule needs a unique code, label, explicit tax treatment, rate in basis points, and tax-inclusive flag.",requestId),400,requestId);
+        }
+        if(treatment!=="taxable"&&Number(rate)!==0)return response(req,err("VALIDATION_ERROR","Only rules explicitly classified as taxable may carry a non-zero rate; verify classifications with your tax adviser.",requestId),400,requestId);
+        seenCodes.add(code);
+        normalizedRules.push({code,label,treatment,rateBasisPoints:Number(rate),priceIncludesTax});
+      }
+      const {data:latest,error:latestError}=await admin.from("pos_fiscal_tax_policies").select("policy_version")
+        .eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).order("policy_version",{ascending:false}).limit(1).maybeSingle();
+      if(latestError)throw latestError;
+      const nextVersion=Number(latest?.policy_version??0)+1;
+      const {data:created,error:createError}=await admin.from("pos_fiscal_tax_policies").insert({
+        tenant_id:context.tenantId,branch_id:context.branchId,fiscal_profile_id:profile.id,
+        policy_name:policyName,policy_version:nextVersion,status:"draft",
+        effective_from:effectiveFrom||null,effective_until:effectiveUntil,currency_code:"PHP",
+        rounding_mode:"nearest_centavo",rules:normalizedRules,review_reference:null,reviewed_by:null,reviewed_at:null,
+        created_by:auth.user.id,updated_by:auth.user.id
+      }).select("id,tenant_id,branch_id,fiscal_profile_id,policy_name,policy_version,status,effective_from,effective_until,currency_code,rounding_mode,rules,created_at,updated_at").single();
+      if(createError){
+        const code=(createError as unknown as Rec).code;
+        if(code==="23505")return response(req,err("CONFLICT","Another tax policy was created concurrently. Reload and try again.",requestId),409,requestId);
+        throw createError;
+      }
+      return response(req,{data:created,requestId},201,requestId);
+    }
     if(isOrders){
       const filter=new URL(req.url).searchParams.get("filter")??"active";
       if(filter!=="active"&&filter!=="all")return response(req,err("VALIDATION_ERROR","Order filter must be active or all.",requestId),400,requestId);
