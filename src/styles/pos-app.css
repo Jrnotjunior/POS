@@ -153,3 +153,6 @@
 .pos-customer-help{color:#94a3b8;font-size:10px;line-height:1.4}
 .pos-customer-panel .pos-loyalty-results{position:relative;z-index:2;margin-top:2px;border:1px solid #dbe2ea;border-radius:8px;background:#fff;overflow:hidden}
 .pos-customer-panel .pos-loyalty-results button{width:100%;text-align:left}
+
+.pos-customer-selected{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding:8px 10px;border:1px solid #dbe2ea;border-radius:7px;font-size:11px;color:#475569}
+.pos-customer-selected button{border:0;background:transparent;color:#475569;font:inherit;font-weight:700;cursor:pointer}
