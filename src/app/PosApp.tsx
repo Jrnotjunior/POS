@@ -5,6 +5,7 @@ import { createConfiguredPosApiClient } from '../integrations/web2table/posApiCl
 import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
 import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
+import { subscribeToTenantOrderChanges } from '../integrations/web2table/posRealtime';
 import '../styles/pos-auth.css';
 import '../styles/pos-transactions.css';
 
@@ -258,38 +259,18 @@ export function PosApp() {
     setOrdersRealtimeStatus('connecting');
     void loadOrders();
 
-    // SaaS emits metadata-only tenant broadcasts when customer_orders changes.
-    // Reload the branch-scoped queue through the trusted POS API; never trust
-    // realtime payloads as order data or authorization.
-    const channel = supabaseAuth?.channel(`tenant:${session.tenantId}`, {
-      config: { private: true },
-    });
-    if (!channel) {
-      setOrdersRealtimeStatus('error');
-    } else {
-      channel
-        .on('broadcast', { event: 'db_change' }, (message) => {
-          const payload = message.payload;
-          if (active && payload && payload.table === 'customer_orders'
-            && document.visibilityState === 'visible' && navigator.onLine) {
-            void loadOrders(true);
-          }
-        })
-        .subscribe((status) => {
-          if (!active) return;
-          if (status === 'SUBSCRIBED') {
-            setOrdersRealtimeStatus('connected');
-            // Reconcile once on connection so changes missed while offline are recovered.
-            if (navigator.onLine && document.visibilityState === 'visible') void loadOrders(true);
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            setOrdersRealtimeStatus('error');
-          } else if (status === 'CLOSED') {
-            setOrdersRealtimeStatus('disconnected');
-          } else {
-            setOrdersRealtimeStatus('connecting');
-          }
-        });
-    }
+    // Realtime carries a refresh signal only; order data always comes from the
+    // authorized branch-scoped POS API.
+    const unsubscribe = supabaseAuth
+      ? subscribeToTenantOrderChanges(
+          supabaseAuth,
+          session.tenantId,
+          () => {
+            if (active && document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
+          },
+          setOrdersRealtimeStatus,
+        )
+      : () => setOrdersRealtimeStatus('error');
 
     const refreshWhenVisible = () => {
       if (active && document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
@@ -299,14 +280,13 @@ export function PosApp() {
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       active = false;
-      if (channel) void supabaseAuth?.removeChannel(channel);
+      unsubscribe();
       window.removeEventListener('focus', refreshWhenVisible);
       window.removeEventListener('online', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       ordersRequestId.current += 1;
     };
   }, [view, authenticated, session?.branchId, session?.tenantId, ordersFilter]);
-
   const categoryOptions = useMemo<Category[]>(() => ['All items', ...new Set(products.map((product) => product.category))], [products]);
   const visibleProducts = useMemo(() => products.filter((product) => {
     const matchesCategory = category === 'All items' || product.category === category;
