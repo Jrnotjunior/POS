@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { subscribeToTenantOrderChanges, type PosRealtimeStatus } from './posRealtime';
+import { subscribeToTenantOrderChanges, type PosRealtimeStatus, type PosRealtimeTable } from './posRealtime';
 
 function makeRealtimeClient() {
   let onMessage: ((message: { payload: unknown }) => void) | undefined;
@@ -30,21 +30,23 @@ function makeRealtimeClient() {
 describe('POS tenant order realtime adapter', () => {
   it('subscribes to a private tenant channel and only signals customer order changes', () => {
     const realtime = makeRealtimeClient();
-    const onOrderChange = vi.fn();
+    const onTableChange = vi.fn<(table: PosRealtimeTable) => void>();
     const onStatus = vi.fn<(status: PosRealtimeStatus) => void>();
 
-    subscribeToTenantOrderChanges(realtime.client, 'tenant-123', onOrderChange, onStatus);
+    subscribeToTenantOrderChanges(realtime.client, 'tenant-123', onTableChange, onStatus);
 
     expect(realtime.client.channel).toHaveBeenCalledWith('tenant:tenant-123', { config: { private: true } });
     expect(realtime.channel.on).toHaveBeenCalledWith('broadcast', { event: 'db_change' }, expect.any(Function));
 
     realtime.emit({ table: 'menu_items', operation: 'UPDATE' });
     realtime.emit({ table: 'delivery_assignments', operation: 'UPDATE' });
-    expect(onOrderChange).not.toHaveBeenCalled();
+    expect(onTableChange).not.toHaveBeenCalled();
 
     realtime.emit({ table: 'customer_orders', operation: 'INSERT' });
     realtime.emit({ table: 'customer_orders', operation: 'UPDATE' });
-    expect(onOrderChange).toHaveBeenCalledTimes(2);
+    realtime.emit({ table: 'pos_sales', operation: 'INSERT' });
+    realtime.emit({ table: 'pos_cashier_shifts', operation: 'UPDATE' });
+    expect(onTableChange.mock.calls.map(([table]) => table)).toEqual(['customer_orders', 'customer_orders', 'pos_sales', 'pos_cashier_shifts']);
   });
 
   it('maps subscription statuses and cleans up without handling late events', () => {
@@ -63,7 +65,7 @@ describe('POS tenant order realtime adapter', () => {
     expect(realtime.client.removeChannel).toHaveBeenCalledTimes(1);
     realtime.emit({ table: 'customer_orders', operation: 'INSERT' });
     realtime.setStatus('SUBSCRIBED');
-    expect(onOrderChange).not.toHaveBeenCalled();
+    expect(onTableChange).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledTimes(3);
   });
 
