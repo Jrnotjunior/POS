@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 import { renderCashReceiptHtml, renderXReadingHtml, renderZReadingHtml } from '../domain/fiscalDocuments';
+import { FiscalProfileSettings } from '../features/fiscal/FiscalProfileSettings';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
 import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
@@ -12,7 +13,7 @@ import '../styles/pos-transactions.css';
 
 type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; imageUrl: string | null };
-type View = 'register' | 'transactions' | 'orders' | 'shifts';
+type View = 'register' | 'transactions' | 'orders' | 'shifts' | 'fiscal';
 const demoProducts: Product[] = [
   { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), imageUrl: null },
   { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), imageUrl: null },
@@ -420,11 +421,12 @@ export function PosApp() {
           <a className={view === 'transactions' ? 'is-active' : ''} href="#transactions" aria-current={view === 'transactions' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('transactions'); }}><span aria-hidden="true">◷</span> Transactions</a>
           <a className={view === 'orders' ? 'is-active' : ''} href="#orders" aria-current={view === 'orders' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('orders'); setOrdersNotice(''); }}><span aria-hidden="true">≡</span> Orders</a>
           <a className={view === 'shifts' ? 'is-active' : ''} href="#shifts" aria-current={view === 'shifts' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('shifts'); void refreshShift(); }}><span aria-hidden="true">▤</span> Shifts</a>
+          {session?.role === 'restaurant_owner' && <a className={view === 'fiscal' ? 'is-active' : ''} href="#fiscal" aria-current={view === 'fiscal' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('fiscal'); }}><span aria-hidden="true">▧</span> Taxpayer setup</a>}
         </nav>
         <div className="pos-sidebar-bottom"><div className="pos-environment"><span className="status-dot" /> {connectionStatus === 'connected' ? 'Live restaurant data' : connectionStatus === 'error' ? 'Connection issue' : 'Prototype environment'}</div><p>Restaurant operations, connected.</p></div>
       </aside>
       <main className="pos-main" id={view}>
-        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : view === 'orders' ? 'Orders' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
+        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : view === 'orders' ? 'Orders' : view === 'fiscal' ? 'Taxpayer setup' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
             try { await signOutPos(); }
             finally {
               setAuthenticated(false);
@@ -541,9 +543,13 @@ export function PosApp() {
                   </Fragment>)}
                 </tbody></table></div>}
             </section>
-          </> : <>
+          </> : view === 'fiscal' ? (
+            session?.role === 'restaurant_owner' && apiClient
+              ? <FiscalProfileSettings apiClient={apiClient} session={session} />
+              : <section className="transactions-panel"><div className="transactions-heading"><div><h2>Taxpayer setup unavailable</h2></div></div><p className="transactions-empty">Only a restaurant owner can manage taxpayer configuration.</p></section>
+          ) : <>
             
-            {notice && <div className="pos-notice" role="status">{notice}</div>}
+            {notice && <div className="pos-notice" role="status</div>}
             <section className="transactions-panel">
               <div className="transactions-heading"><div><h2>{cashierShift?.active ? 'Active shift' : 'No active shift'}</h2><p>{session?.branchName ?? 'Authorized branch'} · {session?.displayName ?? 'Cashier'}</p></div><span className={cashierShift?.active ? 'paid-pill' : 'catalog-count'}>{cashierShift?.active ? 'OPEN' : 'CLOSED'}</span></div>
               {cashierShift?.active ? <div className="transactions-toolbar">
