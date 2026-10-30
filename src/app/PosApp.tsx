@@ -39,7 +39,6 @@ export function PosApp() {
   const [cashReceived, setCashReceived] = useState('');
   const [submittingSale, setSubmittingSale] = useState(false);
   const [lastSale, setLastSale] = useState<PosCashSaleResult | null>(null);
-  const [lastSaleItems, setLastSaleItems] = useState<PosCashSaleHistoryItem['items']>([]);
   const pendingSaleKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [sales, setSales] = useState<PosCashSaleHistoryItem[]>([]);
   const salesRequestId = useRef(0);
@@ -330,7 +329,6 @@ export function PosApp() {
       setLastSale(result);
       // The create-sale API returns persisted database line snapshots.
       // Printing can work immediately without relying on history refresh.
-      setLastSaleItems(result.items);
       setCart([]);
       setCashReceived('');
       setCheckoutOpen(false);
@@ -347,7 +345,6 @@ export function PosApp() {
         setSales(refreshedSales);
         const persistedSale = refreshedSales.find((sale) => sale.id === result.id);
         if (persistedSale) {
-          setLastSaleItems(persistedSale.items);
           setLastSale(persistedSale);
         }
       } catch {
@@ -370,7 +367,7 @@ export function PosApp() {
 
   function printReceipt(sale: PosCashSaleHistoryItem | PosCashSaleResult = lastSale as PosCashSaleResult) {
     if (!sale || !session) return;
-    const savedItems = 'items' in sale ? sale.items : (sale.id === lastSale?.id ? lastSaleItems : []);
+    const savedItems = sale.items;
     const html = renderCashReceiptHtml(sale, savedItems, {
       sellerName: session.tenantName,
       branchName: session.branchName,
@@ -423,7 +420,6 @@ export function PosApp() {
               setCashReceived('');
               setSubmittingSale(false);
               setLastSale(null);
-              setLastSaleItems([]);
               pendingSaleKey.current = null;
               salesRequestId.current += 1;
               ordersRequestId.current += 1;
