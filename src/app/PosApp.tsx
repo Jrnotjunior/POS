@@ -50,6 +50,7 @@ export function PosApp() {
   const [sales, setSales] = useState<PosCashSaleHistoryItem[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState('');
+  const [salesSearch, setSalesSearch] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -127,6 +128,16 @@ export function PosApp() {
     const matchesSearch = product.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
     return matchesCategory && matchesSearch;
   }), [category, search, products]);
+  const filteredSales = useMemo(() => {
+    const query = salesSearch.trim().toLocaleLowerCase();
+    if (!query) return sales;
+    return sales.filter((sale) =>
+      saleLabel(sale).toLocaleLowerCase().includes(query)
+      || sale.items.some((item) => item.item_name_snapshot.toLocaleLowerCase().includes(query))
+      || new Date(sale.created_at).toLocaleString().toLocaleLowerCase().includes(query)
+      || formatPhp(moneyFromCentavos(sale.total_centavos)).toLocaleLowerCase().includes(query)
+    );
+  }, [sales, salesSearch]);
   const itemCount = countCartItems(cart);
   const subtotal = calculateCartSubtotal(cart);
   const receivedCentavos = Math.round((Number(cashReceived) || 0) * 100);
@@ -213,8 +224,9 @@ export function PosApp() {
           </> : <>
             <section className="pos-page-heading"><div><p className="pos-eyebrow">CASH MANAGEMENT</p><h1>Transactions</h1><p className="pos-subtitle">Saved cash sales for your authorized branch.</p></div><button className="text-button" type="button" onClick={() => void loadSales()} disabled={salesLoading}>{salesLoading ? 'Refreshing…' : 'Refresh history'}</button></section>
             {salesError && <div className="pos-notice" role="alert">{salesError}</div>}
-            <section className="transactions-panel"><div className="transactions-heading"><div><h2>Sales history</h2><p>{session?.branchName ?? 'Authorized branch'} · Most recent first</p></div><span className="catalog-count">{sales.length} records</span></div>
-              {salesLoading ? <p className="transactions-empty">Loading saved transactions…</p> : sales.length === 0 ? <p className="transactions-empty">No saved cash sales found for this branch.</p> : <div className="transactions-table-wrap"><table className="transactions-table"><thead><tr><th>Receipt</th><th>Date</th><th>Items</th><th>Payment</th><th>Total</th><th>Receipt</th></tr></thead><tbody>{sales.map((sale) => <tr key={sale.id}><td><strong>{saleLabel(sale)}</strong></td><td>{new Date(sale.created_at).toLocaleString()}</td><td>{sale.items.map((item) => `${item.item_name_snapshot} ×${item.quantity}`).join(', ')}</td><td><span className="paid-pill">PAID · CASH</span></td><td><strong>{formatPhp(moneyFromCentavos(sale.total_centavos))}</strong></td><td><button className="text-button" type="button" onClick={() => printReceipt(sale)}>Print</button></td></tr>)}</tbody></table></div>}
+            <section className="transactions-panel"><div className="transactions-heading"><div><h2>Sales history</h2><p>{session?.branchName ?? 'Authorized branch'} · Most recent first</p></div><span className="catalog-count">{filteredSales.length} of {sales.length} records</span></div>
+              <div className="transactions-toolbar"><label className="transactions-search"><span aria-hidden="true">⌕</span><input type="search" value={salesSearch} onChange={(event) => setSalesSearch(event.target.value)} placeholder="Search receipt, item, date, or total" aria-label="Search transactions" />{salesSearch && <button type="button" onClick={() => setSalesSearch('')} aria-label="Clear transaction search">×</button>}</label></div>
+              {salesLoading ? <p className="transactions-empty">Loading saved transactions…</p> : sales.length === 0 ? <p className="transactions-empty">No saved cash sales found for this branch.</p> : filteredSales.length === 0 ? <p className="transactions-empty">No transactions match “{escapeHtml(salesSearch)}”. Try a receipt number, item name, date, or total.</p> : <div className="transactions-table-wrap"><table className="transactions-table"><thead><tr><th>Receipt</th><th>Date</th><th>Items</th><th>Payment</th><th>Total</th><th>Receipt</th></tr></thead><tbody>{filteredSales.map((sale) => <tr key={sale.id}><td><strong>{saleLabel(sale)}</strong></td><td>{new Date(sale.created_at).toLocaleString()}</td><td>{sale.items.map((item) => `${item.item_name_snapshot} ×${item.quantity}`).join(', ')}</td><td><span className="paid-pill">PAID · CASH</span></td><td><strong>{formatPhp(moneyFromCentavos(sale.total_centavos))}</strong></td><td><button className="text-button" type="button" onClick={() => printReceipt(sale)}>Print</button></td></tr>)}</tbody></table></div>}
             </section>
           </>}
         </div>
