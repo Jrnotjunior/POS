@@ -51,9 +51,9 @@ describe('POS tenant order realtime adapter', () => {
 
   it('maps subscription statuses and cleans up without handling late events', () => {
     const realtime = makeRealtimeClient();
-    const onOrderChange = vi.fn();
+    const onTableChange = vi.fn<(table: PosRealtimeTable) => void>();
     const onStatus = vi.fn<(status: PosRealtimeStatus) => void>();
-    const unsubscribe = subscribeToTenantOrderChanges(realtime.client, 'tenant-123', onOrderChange, onStatus);
+    const unsubscribe = subscribeToTenantOrderChanges(realtime.client, 'tenant-123', onTableChange, onStatus);
 
     realtime.setStatus('SUBSCRIBED');
     realtime.setStatus('CHANNEL_ERROR');
