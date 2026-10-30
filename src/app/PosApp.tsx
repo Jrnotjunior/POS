@@ -549,7 +549,7 @@ export function PosApp() {
               : <section className="transactions-panel"><div className="transactions-heading"><div><h2>Taxpayer setup unavailable</h2></div></div><p className="transactions-empty">Only a restaurant owner can manage taxpayer configuration.</p></section>
           ) : <>
             
-            {notice && <div className="pos-notice" role="status</div>}
+            {notice && <div className="pos-notice" role="status">{notice}</div>}
             <section className="transactions-panel">
               <div className="transactions-heading"><div><h2>{cashierShift?.active ? 'Active shift' : 'No active shift'}</h2><p>{session?.branchName ?? 'Authorized branch'} · {session?.displayName ?? 'Cashier'}</p></div><span className={cashierShift?.active ? 'paid-pill' : 'catalog-count'}>{cashierShift?.active ? 'OPEN' : 'CLOSED'}</span></div>
               {cashierShift?.active ? <div className="transactions-toolbar">
