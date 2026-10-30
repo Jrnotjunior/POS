@@ -62,6 +62,12 @@ export function PosApp() {
   const [countedCash, setCountedCash] = useState('');
   const [shiftCloseNote, setShiftCloseNote] = useState('');
   const [lastClosedShift, setLastClosedShift] = useState<PosClosedShift | null>(null);
+  const [loyaltySearch, setLoyaltySearch] = useState('');
+  const [loyaltyCustomers, setLoyaltyCustomers] = useState<PosLoyaltyCustomer[]>([]);
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState<PosLoyaltyCustomer | null>(null);
+  const [loyaltyBalance, setLoyaltyBalance] = useState<PosLoyaltyBalance | null>(null);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltyError, setLoyaltyError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -310,6 +316,35 @@ export function PosApp() {
 
   function addProduct(product: Product) { setNotice(''); setCart((current) => addToCart(current, product)); }
   function changeQuantity(productId: string, delta: number) { setCart((current) => changeCartQuantity(current, productId, delta)); }
+  async function searchLoyaltyCustomers() {
+    if (!apiClient || !session || loyaltySearch.trim().length < 2) {
+      setLoyaltyCustomers([]);
+      setLoyaltyError(loyaltySearch.trim().length < 2 ? 'Enter at least 2 characters.' : '');
+      return;
+    }
+    setLoyaltyLoading(true); setLoyaltyError(''); setLoyaltyBalance(null); setLoyaltyCustomer(null);
+    try {
+      const results = await apiClient.searchLoyaltyCustomers(session.branchId, loyaltySearch.trim());
+      setLoyaltyCustomers(results);
+      if (results.length === 0) setLoyaltyError('No linked customer accounts found for this branch.');
+    } catch (error) {
+      setLoyaltyCustomers([]);
+      setLoyaltyError(error instanceof Error ? error.message : 'Customer search failed.');
+    } finally { setLoyaltyLoading(false); }
+  }
+
+  async function selectLoyaltyCustomer(customer: PosLoyaltyCustomer) {
+    if (!apiClient || !session) return;
+    setLoyaltyCustomer(customer); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
+    try {
+      const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerUserId);
+      setLoyaltyBalance(balance);
+    } catch (error) {
+      setLoyaltyBalance(null);
+      setLoyaltyError(error instanceof Error ? error.message : 'Could not load loyalty balance.');
+    } finally { setLoyaltyLoading(false); }
+  }
+
 
   async function completeCashSale() {
     if (!apiClient || !session || !cashierShift?.active || cart.length === 0 || receivedCentavos < dueCentavos || submittingSale) return;
@@ -455,6 +490,20 @@ export function PosApp() {
               </section>
               <aside className="order-panel" aria-label="Current order">
                 <div className="order-panel-heading"><div><p className="pos-eyebrow">CURRENT SALE</p><h2>New order</h2></div><button className="text-button" type="button" onClick={() => { setCart([]); setNotice(''); }} disabled={cart.length === 0}>Clear</button></div>
+                <section className="pos-loyalty-panel" aria-label="Customer loyalty">
+                  <div className="pos-loyalty-heading"><strong>Customer loyalty</strong><span>OPTIONAL</span></div>
+                  {loyaltyCustomer ? <div className="pos-loyalty-selected">
+                    <div><strong>{loyaltyCustomer.displayName}</strong><small>Phone ending {loyaltyCustomer.phoneLastFour || '----'}</small></div>
+                    <button type="button" onClick={() => { setLoyaltyCustomer(null); setLoyaltyBalance(null); setLoyaltySearch(''); setLoyaltyError(''); }} aria-label="Remove selected loyalty customer">Change</button>
+                  </div> : <form className="pos-loyalty-search" onSubmit={(event) => { event.preventDefault(); void searchLoyaltyCustomers(); }}>
+                    <input value={loyaltySearch} onChange={(event) => setLoyaltySearch(event.target.value)} placeholder="Find by customer name or phone" aria-label="Find loyalty customer" minLength={2} maxLength={80} />
+                    <button type="submit" disabled={loyaltyLoading || loyaltySearch.trim().length < 2}>{loyaltyLoading ? 'Searching…' : 'Find'}</button>
+                  </form>}
+                  {loyaltyCustomers.length > 0 && <div className="pos-loyalty-results">{loyaltyCustomers.map((customer) => <button key={customer.customerUserId} type="button" onClick={() => void selectLoyaltyCustomer(customer)}><span><strong>{customer.displayName}</strong><small>Phone ending {customer.phoneLastFour || '----'}</small></span><span>Select</span></button>)}</div>}
+                  {loyaltyLoading && loyaltyCustomer && <p className="pos-loyalty-meta">Loading points balance…</p>}
+                  {loyaltyBalance && <div className="pos-loyalty-balance"><span>Available points</span><strong>{loyaltyBalance.account.points_balance.toLocaleString()}</strong><small>{loyaltyBalance.settings.enabled ? (loyaltyBalance.settings.redemption_enabled ? 'Rewards enabled' : 'Earning enabled · redemption off') : 'Loyalty is disabled for this restaurant'}</small></div>}
+                  {loyaltyError && <p className="pos-loyalty-error" role="status">{loyaltyError}</p>}
+                </section>
                 <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>{session?.displayName ?? 'Walk-in customer'}</strong><span>{session ? `${session.branchName} · Draft` : 'In-store order · Draft'}</span></div><span className="draft-pill">DRAFT</span></div>
                 <div className="order-lines-heading"><span>ITEM</span><span>QTY</span><span className="align-right">TOTAL</span></div>
                 <div className="order-lines">{cart.length === 0 ? <div className="empty-order"><span className="empty-order-icon" aria-hidden="true">▤</span><strong>Your order is empty</strong><p>Select items from the menu to get started.</p></div> : cart.map((line) => <div className="order-line" key={line.product.id}><div className="order-line-product"><strong>{line.product.name}</strong><span>{formatPhp(line.product.price)} each</span></div><div className="quantity-control"><button type="button" onClick={() => changeQuantity(line.product.id, -1)} aria-label={`Remove one ${line.product.name}`}>−</button><span>{line.quantity}</span><button type="button" onClick={() => changeQuantity(line.product.id, 1)} aria-label={`Add one ${line.product.name}`}>+</button></div><strong className="line-total">{formatPhp(multiplyMoney(line.product.price, line.quantity))}</strong></div>)}</div>
