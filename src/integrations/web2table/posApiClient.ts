@@ -7,6 +7,7 @@ import {
   type PosApiError,
   type PosCashSaleHistoryItem,
   type PosCashSaleRequest,
+  type PosLoyaltyBalance,
   type PosCashSaleResult,
   type PosCashierShift,
   type PosClosedShift,
@@ -130,6 +131,25 @@ export function createPosApiClient(options: PosApiClientOptions) {
   }
 
   return {
+    async getLoyaltyBalance(branchId: string, customerUserId: string): Promise<PosLoyaltyBalance> {
+      if (!branchId.trim() || !customerUserId.trim()) {
+        throw new PosApiClientError('A branch and customer identity are required.', 400, 'VALIDATION_ERROR');
+      }
+      const payload = await getJson('/api/pos/v1/loyalty/balance?branchId=' + encodeURIComponent(branchId) + '&customerUserId=' + encodeURIComponent(customerUserId));
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isRecord(data) || data.customerUserId !== customerUserId || !isRecord(data.account) || !isRecord(data.settings)
+        || !Number.isSafeInteger(data.account.points_balance) || Number(data.account.points_balance) < 0
+        || !Number.isSafeInteger(data.account.lifetime_points_earned) || Number(data.account.lifetime_points_earned) < 0
+        || !Number.isSafeInteger(data.account.lifetime_points_redeemed) || Number(data.account.lifetime_points_redeemed) < 0
+        || !Number.isSafeInteger(data.account.eligible_spend_centavos) || Number(data.account.eligible_spend_centavos) < 0
+        || typeof data.settings.enabled !== 'boolean' || typeof data.settings.redemption_enabled !== 'boolean'
+        || !Number.isSafeInteger(data.settings.points_awarded) || Number(data.settings.points_awarded) < 0
+        || !Number.isSafeInteger(data.settings.redemption_points) || Number(data.settings.redemption_points) < 0) {
+        throw new PosApiClientError('The POS service returned an invalid loyalty balance response.', 502, 'INVALID_RESPONSE');
+      }
+      return data as unknown as PosLoyaltyBalance;
+    },
+
     async getCashierShift(branchId: string): Promise<PosCashierShift> {
       if (!branchId.trim()) throw new Error('A server-authorized branch context is required.');
       const payload = await getJson(`/api/pos/v1/shift?branchId=${encodeURIComponent(branchId)}`);
