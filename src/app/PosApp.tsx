@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
@@ -59,6 +59,7 @@ export function PosApp() {
   const [ordersNotice, setOrdersNotice] = useState('');
   const [ordersFilter, setOrdersFilter] = useState<'active' | 'all'>('active');
   const [busyOrderId, setBusyOrderId] = useState('');
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(() => new Set());
   const ordersRequestId = useRef(0);
   const [cashierShift, setCashierShift] = useState<PosCashierShift | null>(null);
   const shiftRequestId = useRef(0);
@@ -442,19 +443,35 @@ export function PosApp() {
               {ordersLoading && orders.length === 0 ? <p className="transactions-empty">Loading orders from your authorized branch…</p>
                 : orders.length === 0 ? <p className="transactions-empty">No {ordersFilter === 'active' ? 'active ' : ''}online orders for this branch.</p>
                 : <div className="transactions-table-wrap"><table className="transactions-table"><thead><tr><th>Order</th><th>Placed</th><th>Customer</th><th>Fulfilment</th><th>Items</th><th>Payment</th><th>Total</th><th>Status / Actions</th></tr></thead><tbody>
-                  {orders.map((order) => <tr key={order.id}>
-                    <td><strong>#{order.order_number}</strong></td>
-                    <td>{new Date(order.created_at).toLocaleString()}</td>
-                    <td><strong>{order.customer_name}</strong><br /><span>{order.customer_phone}</span></td>
-                    <td>{order.order_type.replaceAll('_', ' ')}{order.delivery_address ? <><br /><span>{order.delivery_address}</span></> : null}</td>
-                    <td>{order.items.map((item) => `${item.item_name} ×${item.quantity}`).join(', ')}</td>
-                    <td>{order.payment_status.replaceAll('_', ' ')}{order.payment_method ? <><br /><span>{order.payment_method}</span></> : null}</td>
-                    <td><strong>{order.total_centavos === null ? 'Awaiting confirmation' : formatPhp(moneyFromCentavos(order.total_centavos))}</strong></td>
-                    <td><span className="paid-pill">{order.order_status.replaceAll('_', ' ')}</span>
-                      {order.order_status === 'pending_confirmation' && <div className="cash-shortcuts"><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'confirm')}>{busyOrderId === order.id ? 'Saving…' : 'Confirm'}</button><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'reject')}>Reject</button></div>}
-                      {order.order_status === 'confirmed' && <div className="cash-shortcuts"><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'cancel')}>Cancel</button></div>}
-                    </td>
-                  </tr>)}
+                  {orders.map((order) => <Fragment key={order.id}>
+                    <tr>
+                      <td><strong>#{order.order_number}</strong><br /><button className="text-button" type="button" aria-expanded={expandedOrderIds.has(order.id)} onClick={() => setExpandedOrderIds((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })}>{expandedOrderIds.has(order.id) ? 'Hide details' : 'Details'}</button></td>
+                      <td>{new Date(order.created_at).toLocaleString()}</td>
+                      <td><strong>{order.customer_name}</strong><br /><span>{order.customer_phone}</span></td>
+                      <td>{order.order_type.replaceAll('_', ' ')}{order.delivery_address ? <><br /><span>{order.delivery_address}</span></> : null}</td>
+                      <td>{order.items.map((item) => `${item.item_name} ×${item.quantity}`).join(', ')}</td>
+                      <td>{order.payment_status.replaceAll('_', ' ')}{order.payment_method ? <><br /><span>{order.payment_method}</span></> : null}</td>
+                      <td><strong>{order.total_centavos === null ? 'Awaiting confirmation' : formatPhp(moneyFromCentavos(order.total_centavos))}</strong></td>
+                      <td><span className="paid-pill">{order.order_status.replaceAll('_', ' ')}</span>
+                        {order.order_status === 'pending_confirmation' && <div className="cash-shortcuts"><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'confirm')}>{busyOrderId === order.id ? 'Saving…' : 'Confirm'}</button><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'reject')}>Reject</button></div>}
+                        {order.order_status === 'confirmed' && <div className="cash-shortcuts"><button type="button" disabled={busyOrderId !== ''} onClick={() => void actOnOrder(order, 'cancel')}>Cancel</button></div>}
+                      </td>
+                    </tr>
+                    {expandedOrderIds.has(order.id) && <tr><td colSpan={8}>
+                      <section aria-label={`Details for order ${order.order_number}`}>
+                        <h3>Order #{order.order_number} details</h3>
+                        <p><strong>Items</strong></p>
+                        <ul>{order.items.map((item) => <li key={item.id}>{item.item_name} — {item.quantity} × {formatPhp(moneyFromCentavos(item.unit_price_centavos))} = {formatPhp(moneyFromCentavos(item.line_total_centavos))}
+                          {item.options && item.options.length > 0 && <ul>{item.options.map((option, index) => <li key={option.id ?? `${option.group_name ?? 'option'}-${option.name ?? index}`}>{option.group_name ? `${option.group_name}: ` : ''}{option.name ?? 'Option'}</li>)}</ul>}
+                        </li>)}</ul>
+                        <p><strong>Subtotal:</strong> {formatPhp(moneyFromCentavos(order.subtotal_centavos))}</p>
+                        {order.delivery_fee_centavos !== null && <p><strong>Delivery fee:</strong> {formatPhp(moneyFromCentavos(order.delivery_fee_centavos))}</p>}
+                        <p><strong>Total:</strong> {order.total_centavos === null ? 'Awaiting confirmation' : formatPhp(moneyFromCentavos(order.total_centavos))}</p>
+                        {order.delivery_notes.trim() && <p><strong>Fulfilment notes:</strong> {order.delivery_notes}</p>}
+                        <p><strong>Last updated:</strong> {new Date(order.updated_at).toLocaleString()}</p>
+                      </section>
+                    </td></tr>}
+                  </Fragment>)}
                 </tbody></table></div>}
             </section>
           </> : <>
