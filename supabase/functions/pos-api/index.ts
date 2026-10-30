@@ -104,7 +104,8 @@ Deno.serve(async(req:Request)=>{
     const isFiscalProfileSave=req.method==="POST"&&path.endsWith("/api/pos/v1/fiscal-profile");
     const isFiscalTaxPoliciesGet=req.method==="GET"&&path.endsWith("/api/pos/v1/fiscal-tax-policies");
     const isFiscalTaxPolicyCreate=req.method==="POST"&&path.endsWith("/api/pos/v1/fiscal-tax-policies");
-    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave&&!isFiscalTaxPoliciesGet&&!isFiscalTaxPolicyCreate)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    const isLoyaltyBalance=req.method==="GET"&&path.endsWith("/api/pos/v1/loyalty/balance");
+    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose&&!isFiscalProfileGet&&!isFiscalProfileSave&&!isFiscalTaxPoliciesGet&&!isFiscalTaxPolicyCreate&&!isLoyaltyBalance)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
     if(isShiftGet||isShiftOpen||isShiftClose){
       let body:Rec={};
       if(isShiftOpen||isShiftClose){
@@ -238,7 +239,7 @@ Deno.serve(async(req:Request)=>{
       const {data:t,error:te}=await admin.from("tenants").select("id,name").eq("id",m.tenant_id).eq("status","active").maybeSingle();
       if(te)throw te;if(!t)continue;
       let q=admin.from("branches").select("id,tenant_id,name").eq("tenant_id",t.id).eq("is_active",true);
-      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate)q=q.eq("id",requestedBranch);
+      if(isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate||isLoyaltyBalance)q=q.eq("id",requestedBranch);
       if(m.role==="cashier") {
         const {data:assigned,error:assignedError}=await admin.from("branch_memberships").select("branch_id").eq("tenant_id",t.id).eq("user_id",auth.user.id);
         if(assignedError)throw assignedError;
@@ -270,6 +271,20 @@ Deno.serve(async(req:Request)=>{
       if(branchesError)throw branchesError;
       const branches=(authorizedBranches??[]).map((branch:Rec)=>({id:branch.id,name:branch.name,slug:branch.slug,timezone:typeof branch.timezone==="string"?branch.timezone:"Asia/Manila"}));
       return response(req,{data:{userId:auth.user.id,displayName:displayName(auth.user),tenantId:context.tenantId,tenantName:context.tenantName,branchId:context.branchId,branchName:context.branchName,branches,role,permissions:["pos.session.read","pos.menu.read","pos.sales.read","pos.sale.create"]},requestId},200,requestId);
+    }
+    if(isLoyaltyBalance){
+      const params=new URL(req.url).searchParams;
+      const customerUserId=params.get("customerUserId")??"";
+      if(!uuid(customerUserId))return response(req,err("VALIDATION_ERROR","A valid customer identity is required.",requestId),400,requestId);
+      const {data:account,error:accountError}=await admin.from("tenant_customer_loyalty_accounts")
+        .select("points_balance,lifetime_points_earned,lifetime_points_redeemed,eligible_spend_centavos,updated_at")
+        .eq("tenant_id",context.tenantId).eq("customer_user_id",customerUserId).maybeSingle();
+      if(accountError)throw accountError;
+      const {data:settings,error:settingsError}=await admin.from("tenant_loyalty_settings")
+        .select("enabled,amount_threshold,points_awarded,redemption_enabled,redemption_points,redemption_amount")
+        .eq("tenant_id",context.tenantId).maybeSingle();
+      if(settingsError)throw settingsError;
+      return response(req,{data:{customerUserId,account:account??{points_balance:0,lifetime_points_earned:0,lifetime_points_redeemed:0,eligible_spend_centavos:0,updated_at:null},settings:settings??{enabled:false,amount_threshold:null,points_awarded:0,redemption_enabled:false,redemption_points:0,redemption_amount:null}},requestId},200,requestId);
     }
     if(isFiscalProfileGet||isFiscalProfileSave){
       if(role!=="restaurant_owner")return response(req,err("FORBIDDEN","Only a restaurant owner can manage taxpayer fiscal configuration.",requestId),403,requestId);
