@@ -235,6 +235,8 @@ export type PosCashSaleRequest = Readonly<{
   branchId: string;
   idempotencyKey: string;
   cashTenderedCentavos: number;
+  customerName: string | null;
+  customerUserId: string | null;
   items: readonly Readonly<{ itemId: string; quantity: number }>[];
 }>;
 
@@ -256,6 +258,7 @@ export type PosCashSaleResult = Readonly<{
   payment_status: 'paid';
   cash_tendered_centavos: number;
   change_centavos: number;
+  customer_name?: string | null;
   created_at: string;
   items: readonly PosCashSaleLineSnapshot[];
 }>;
