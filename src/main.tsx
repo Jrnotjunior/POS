@@ -1,18 +1,4 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { PosApp } from './app/PosApp';
-import './styles/tokens.css';
-import './styles/global.css';
-import './styles/pos-app.css';
-
-const rootElement = document.getElementById('root');
-
-if (!rootElement) {
-  throw new Error('Required application root element was not found.');
-}
-
-createRoot(rootElement).render(
-  <StrictMode>
-    <PosApp />
-  </StrictMode>,
-);
+// POS is part of the authenticated Web2table cashier workspace.
+// Keep the legacy GitHub Pages URL as a compatibility redirect only: do not
+// collect credentials or create a separate POS session here.
+window.location.replace('https://app.web2table.io/#/restaurant/cashier/pos');
