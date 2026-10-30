@@ -95,3 +95,32 @@ export function isValidPosOnlineOrder(value: PosOnlineOrderSnapshot): boolean {
     && line.lineAmountMinor === line.unitAmountMinor * line.quantity
   );
 }
+
+export type PosCashSaleRequest = Readonly<{
+  branchId: string;
+  idempotencyKey: string;
+  cashTenderedCentavos: number;
+  items: readonly Readonly<{ itemId: string; quantity: number }>[];
+}>;
+
+export type PosCashSaleResult = Readonly<{
+  id: string;
+  sale_number: number;
+  subtotal_centavos: number;
+  total_centavos: number;
+  payment_method: 'cash';
+  payment_status: 'paid';
+  cash_tendered_centavos: number;
+  change_centavos: number;
+  created_at: string;
+}>;
+
+export type PosCashSaleHistoryItem = PosCashSaleResult & Readonly<{
+  items: readonly Readonly<{
+    line_number: number;
+    item_name_snapshot: string;
+    unit_price_centavos: number;
+    quantity: number;
+    line_total_centavos: number;
+  }>[];
+}>;
