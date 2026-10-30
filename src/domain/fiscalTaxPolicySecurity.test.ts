@@ -6,9 +6,13 @@ const migration = readFileSync(
   "supabase/migrations/20261031150000_enforce_draft_only_fiscal_tax_policies.sql",
   "utf8",
 );
+const profileMigration = readFileSync(
+  "supabase/migrations/20261031160000_enforce_draft_only_fiscal_profiles.sql",
+  "utf8",
+);
 const securitySql = readFileSync("supabase/tests/fiscal_tax_policy_security.sql", "utf8");
 
-describe("fiscal tax-policy authorization contract", () => {
+describe("fiscal configuration authorization contract", () => {
   it("limits fiscal tax-policy routes to restaurant owners", () => {
     expect(api).toContain('if(role!=="restaurant_owner")return response(req,err("FORBIDDEN","Only a restaurant owner can manage fiscal tax policies."');
   });
@@ -32,12 +36,19 @@ describe("fiscal tax-policy authorization contract", () => {
     expect(api).toContain('treatment!=="taxable"&&Number(rate)!==0');
   });
 
-  it("forces inserted policies to unreviewed drafts until approval is implemented", () => {
+  it("forces inserted tax policies to unreviewed drafts until approval is implemented", () => {
     expect(migration).toContain("new.status <> 'draft'");
     expect(migration).toContain("new.reviewed_by is not null");
     expect(migration).toContain("new.reviewed_at is not null");
     expect(migration).toContain("Fiscal tax policy approval is disabled");
     expect(securitySql).toContain("pos_fiscal_tax_policy_draft_only");
+  });
+
+  it("prevents fiscal profiles from claiming authorization without a verified workflow", () => {
+    expect(profileMigration).toContain("new.fiscal_status <> 'draft'");
+    expect(profileMigration).toContain("new.authorized_by is not null");
+    expect(profileMigration).toContain("Fiscal authorization changes are disabled");
+    expect(securitySql).toContain("pos_fiscal_profile_draft_only");
   });
 
   it("protects audit events from mutation and direct writes", () => {
