@@ -36,3 +36,11 @@
 .checkout-dialog .checkout-button{margin-top:12px}
 .checkout-dialog .checkout-caption{margin-top:10px;font-size:10px;line-height:1.5}
 @media(max-width:600px){.checkout-dialog{padding:19px}.transactions-heading{padding:16px}.transactions-table th,.transactions-table td{padding:11px}.transactions-table{min-width:720px}.pos-sign-out{padding:6px}.checkout-backdrop{align-items:start;padding:12px}.checkout-dialog{margin-block:auto}}
+
+.transactions-toolbar{padding:14px 22px;border-bottom:1px solid #edf0f4;background:#fff}
+.transactions-search{display:flex;align-items:center;gap:9px;min-height:40px;max-width:520px;padding:0 11px;border:1px solid #dbe2ea;border-radius:8px;background:#fff;color:#64748b}
+.transactions-search:focus-within{border-color:#94a3b8;box-shadow:0 0 0 3px rgb(100 116 139 / 10%)}
+.transactions-search>span{font-size:19px;line-height:1}
+.transactions-search input{width:100%;min-width:0;height:38px;border:0;outline:0;background:transparent;color:#1f2937;font:12px var(--font-ui)}
+.transactions-search button{display:grid;width:25px;height:25px;flex:0 0 25px;place-items:center;border:0;border-radius:5px;background:#f1f5f9;color:#475569;font-size:17px;cursor:pointer}
+@media(max-width:600px){.transactions-toolbar{padding:12px}.transactions-search{max-width:none}.transactions-heading{align-items:flex-start}}
