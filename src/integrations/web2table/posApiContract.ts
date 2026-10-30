@@ -11,6 +11,7 @@ export type PosSessionContext = Readonly<{
   tenantName: string;
   branchId: string;
   branchName: string;
+  role?: 'restaurant_owner' | 'cashier';
   permissions: readonly string[];
 }>;
 
