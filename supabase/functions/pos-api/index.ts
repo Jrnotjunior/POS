@@ -219,6 +219,9 @@ Deno.serve(async(req:Request)=>{
     const {data:memberships,error:membershipError}=await admin.from("tenant_memberships").select("tenant_id,role").eq("user_id",auth.user.id).eq("status","active").in("role",["restaurant_owner","cashier"]).limit(50);
     if(membershipError)throw membershipError;
     if(!memberships?.length)return response(req,err("FORBIDDEN","Your account does not have an active owner or cashier POS permission.",requestId),403,requestId);
+    // Resolve owner membership first when a user has more than one active role
+    // in the same tenant. This avoids arbitrary role selection from query order.
+    memberships.sort((a:Rec,b:Rec)=>Number(b.role==="restaurant_owner")-Number(a.role==="restaurant_owner"));
     const ordersBranch=new URL(req.url).searchParams.get("branchId")??"";
     const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):(isOrders||isFiscalProfileGet||isFiscalTaxPoliciesGet)?ordersBranch:(isOrderTransition?String(orderActionBody.branchId??""):isFiscalProfileSave?String(fiscalProfileBody.branchId??""):(isFiscalTaxPolicyCreate?String(fiscalTaxPolicyBody.branchId??""):""));
     if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
@@ -326,7 +329,7 @@ Deno.serve(async(req:Request)=>{
           &&month>=1&&month<=12&&day>=1;
       };
       if(policyName.length<2||policyName.length>120||!Array.isArray(rules)||rules.length<1||rules.length>50
-        ||(effectiveFrom&&!isoDate(effectiveFrom))||(effectiveUntil!==null&&!isoDate(effectiveUntil))
+        ||!isoDate(effectiveFrom)||(effectiveUntil!==null&&!isoDate(effectiveUntil))
         ||(effectiveFrom&&effectiveUntil&&Date.parse(effectiveUntil)<=Date.parse(effectiveFrom))){
         return response(req,err("VALIDATION_ERROR","Provide a policy name, one to fifty explicit tax rules, and valid effective dates.",requestId),400,requestId);
       }
