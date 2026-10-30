@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
+import { renderCashReceiptHtml, renderXReadingHtml, renderZReadingHtml } from '../domain/fiscalDocuments';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
 import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
@@ -365,14 +366,45 @@ export function PosApp() {
     } finally { setSubmittingSale(false); }
   }
 
+  function printDocument(html: string, title: string) {
+    const popup = window.open('', '_blank', 'width=420,height=760');
+    if (!popup) { setNotice('Allow pop-ups to print this document.'); return; }
+    popup.document.open();
+    popup.document.write(html.replace('</body>', `<script>document.title=${JSON.stringify(title)};window.onload=()=>window.print()<\\/script></body>`));
+    popup.document.close();
+  }
+
   function printReceipt(sale: PosCashSaleHistoryItem | PosCashSaleResult = lastSale as PosCashSaleResult) {
-    if (!sale) return;
+    if (!sale || !session) return;
     const savedItems = 'items' in sale ? sale.items : (sale.id === lastSale?.id ? lastSaleItems : []);
-    const itemRows = savedItems.map((item) => `<tr><td>${escapeHtml(item.item_name_snapshot)} × ${item.quantity}</td><td>${formatPhp(moneyFromCentavos(item.line_total_centavos))}</td></tr>`).join('') ?? '';
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${saleLabel(sale)}</title><style>body{font:14px/1.45 Arial,sans-serif;color:#111;max-width:320px;margin:24px auto;padding:0 12px}h1,p{text-align:center}h1{font-size:20px}table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px dashed #ddd}td:last-child{text-align:right;white-space:nowrap}.total{font-weight:bold;font-size:18px;border-top:1px solid #111;padding-top:12px}.muted{color:#555;font-size:12px}</style></head><body><h1>Web2table</h1><p>Restaurant operations, connected.</p><p>Cash sale receipt<br>${saleLabel(sale)}<br><span class="muted">${new Date(sale.created_at).toLocaleString()}</span></p><table>${itemRows}</table><p class="total">Total: ${formatPhp(moneyFromCentavos(sale.total_centavos))}</p><p>Cash received: ${formatPhp(moneyFromCentavos(sale.cash_tendered_centavos))}<br>Change: ${formatPhp(moneyFromCentavos(sale.change_centavos))}</p><p>Thank you!</p><script>window.onload=()=>window.print()<\/script></body></html>`;
-    const popup = window.open('', '_blank', 'width=420,height=680');
-    if (!popup) { setNotice('Allow pop-ups to print the receipt.'); return; }
-    popup.document.write(html); popup.document.close();
+    const html = renderCashReceiptHtml(sale, savedItems, {
+      sellerName: session.tenantName,
+      branchName: session.branchName,
+      cashierName: session.displayName,
+    });
+    printDocument(html, `Cash receipt ${saleLabel(sale)}`);
+  }
+
+  function printXReading() {
+    if (!cashierShift?.active || !session) return;
+    try {
+      printDocument(renderXReadingHtml(cashierShift, {
+        sellerName: session.tenantName, branchName: session.branchName, cashierName: session.displayName,
+      }), 'X Reading — Operational Preview');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not prepare the X reading preview.');
+    }
+  }
+
+  function printZReading() {
+    if (!lastClosedShift || !session) return;
+    try {
+      printDocument(renderZReadingHtml(lastClosedShift, {
+        sellerName: session.tenantName, branchName: session.branchName, cashierName: session.displayName,
+      }), 'Z Reading — Operational Preview');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not prepare the Z reading preview.');
+    }
   }
 
   if (apiClient && !authReady) return <main className="pos-auth-page"><p role="status">Checking secure session…</p></main>;
@@ -521,6 +553,7 @@ export function PosApp() {
                 <p>Expected cash: <strong>{formatPhp(moneyFromCentavos(cashierShift.expected_cash_centavos ?? cashierShift.opening_cash_centavos ?? 0))}</strong></p>
                 <label className="cash-input-label" htmlFor="counted-cash">Counted cash at close (PHP)</label><div className="cash-input-wrap"><span>₱</span><input id="counted-cash" inputMode="decimal" value={countedCash} onChange={(event) => setCountedCash(event.target.value.replace(/[^0-9.]/g, '').replace(/(\\..*)\\./g, '$1'))} placeholder="0.00" /></div>
                 <label className="cash-input-label" htmlFor="shift-close-note">Closing note (optional)</label><div className="cash-input-wrap"><input id="shift-close-note" value={shiftCloseNote} onChange={(event) => setShiftCloseNote(event.target.value.slice(0, 500))} placeholder="Explain any cash difference" /></div>
+                <button className="text-button" type="button" onClick={printXReading}>Print X reading preview</button>
                 <button className="checkout-button" type="button" disabled={shiftActionBusy || !countedCash.trim()} onClick={() => void closeShift()}>{shiftActionBusy ? 'Closing shift…' : 'Close shift and reconcile'} <span aria-hidden="true">→</span></button>
               </div> : <div className="transactions-toolbar">
                 <p>Start a shift before recording cash sales. The opening float and every sale will be used for reconciliation.</p>
@@ -528,7 +561,7 @@ export function PosApp() {
                 <button className="checkout-button" type="button" disabled={shiftActionBusy || !openingCash.trim()} onClick={() => void openShift()}>{shiftActionBusy ? 'Opening shift…' : 'Open cashier shift'} <span aria-hidden="true">→</span></button>
               </div>}
             </section>
-            {lastClosedShift && <section className="transactions-panel"><div className="transactions-heading"><div><h2>Last shift reconciliation</h2><p>{new Date(lastClosedShift.closed_at).toLocaleString()}</p></div><span className={lastClosedShift.cash_variance_centavos === 0 ? 'paid-pill' : 'catalog-count'}>{lastClosedShift.cash_variance_centavos === 0 ? 'BALANCED' : 'VARIANCE'}</span></div><div className="transactions-toolbar"><p>Expected cash: <strong>{formatPhp(moneyFromCentavos(lastClosedShift.expected_cash_centavos))}</strong></p><p>Counted cash: <strong>{formatPhp(moneyFromCentavos(lastClosedShift.counted_cash_centavos))}</strong></p><p>Difference: <strong>{formatPhp(moneyFromCentavos(Math.abs(lastClosedShift.cash_variance_centavos)))} {lastClosedShift.cash_variance_centavos < 0 ? 'short' : lastClosedShift.cash_variance_centavos > 0 ? 'over' : ''}</strong></p></div></section>}
+            {lastClosedShift && <section className="transactions-panel"><div className="transactions-heading"><div><h2>Last shift reconciliation</h2><p>{new Date(lastClosedShift.closed_at).toLocaleString()}</p></div><span className={lastClosedShift.cash_variance_centavos === 0 ? 'paid-pill' : 'catalog-count'}>{lastClosedShift.cash_variance_centavos === 0 ? 'BALANCED' : 'VARIANCE'}</span></div><div className="transactions-toolbar"><p>Expected cash: <strong>{formatPhp(moneyFromCentavos(lastClosedShift.expected_cash_centavos))}</strong></p><p>Counted cash: <strong>{formatPhp(moneyFromCentavos(lastClosedShift.counted_cash_centavos))}</strong></p><p>Difference: <strong>{formatPhp(moneyFromCentavos(Math.abs(lastClosedShift.cash_variance_centavos)))} {lastClosedShift.cash_variance_centavos < 0 ? 'short' : lastClosedShift.cash_variance_centavos > 0 ? 'over' : ''}</strong></p><button className="text-button" type="button" onClick={printZReading}>Print Z reading preview</button></div></section>}
           </>}
         </div>
       </main>
