@@ -317,7 +317,7 @@ Deno.serve(async(req:Request)=>{
       const rules=body.rules;
       const effectiveFrom=typeof body.effectiveFrom==="string"?body.effectiveFrom.trim():"";
       const effectiveUntil=typeof body.effectiveUntil==="string"&&body.effectiveUntil.trim()?body.effectiveUntil.trim():null;
-      const isoDate=(v:string)=>/^\\d{4}-\\d{2}-\\d{2}T/.test(v)&&Number.isFinite(Date.parse(v));
+      const isoDate=(v:string)=>/^\d{4}-\d{2}-\d{2}T/.test(v)&&Number.isFinite(Date.parse(v));
       if(policyName.length<2||policyName.length>120||!Array.isArray(rules)||rules.length<1||rules.length>50
         ||(effectiveFrom&&!isoDate(effectiveFrom))||(effectiveUntil!==null&&!isoDate(effectiveUntil))
         ||(effectiveFrom&&effectiveUntil&&Date.parse(effectiveUntil)<=Date.parse(effectiveFrom))){
