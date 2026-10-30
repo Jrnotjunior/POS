@@ -183,4 +183,60 @@ describe('POS API client', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('loads an empty fiscal profile without treating it as an invalid response', async () => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: null }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.getFiscalProfile('branch-1')).resolves.toBeNull();
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/fiscal-profile?branchId=branch-1', expect.objectContaining({ method: 'GET', credentials: 'omit' }));
+  });
+
+  it('saves fiscal configuration only as a draft and validates the returned branch', async () => {
+    const now = '2026-10-31T10:00:00.000Z';
+    const profile = {
+      id: 'profile-1', tenant_id: 'tenant-1', branch_id: 'branch-1',
+      taxpayer_registered_name: 'Example Food Services Inc.', trade_name: 'Example Kitchen',
+      taxpayer_tin: '123456789', tin_branch_code: '000',
+      registered_address: '123 Example Street, Quezon City', tax_regime: 'vat_registered',
+      invoice_document_type: 'invoice', invoice_series_prefix: 'MAIN-',
+      fiscal_status: 'draft', authorization_reference: null, authorization_effective_at: null,
+      authorization_expires_at: null, authorized_at: null, software_name: 'Web2table POS',
+      software_version: '0.1.0', machine_or_terminal_identifier: null, created_at: now, updated_at: now,
+    };
+    const draft = {
+      branchId: 'branch-1', taxpayerRegisteredName: 'Example Food Services Inc.',
+      tradeName: 'Example Kitchen', taxpayerTin: '123456789', tinBranchCode: '000',
+      registeredAddress: '123 Example Street, Quezon City', taxRegime: 'vat_registered' as const,
+      invoiceSeriesPrefix: 'MAIN-', softwareName: 'Web2table POS', softwareVersion: '0.1.0',
+      machineOrTerminalIdentifier: null,
+    };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: profile }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.saveFiscalProfile(draft)).resolves.toEqual(profile);
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/fiscal-profile', expect.objectContaining({
+      method: 'POST', credentials: 'omit', body: JSON.stringify(draft),
+    }));
+  });
+
+  it('rejects a fiscal profile response for a different branch or non-draft save', async () => {
+    const now = '2026-10-31T10:00:00.000Z';
+    const profile = {
+      id: 'profile-1', tenant_id: 'tenant-1', branch_id: 'another-branch',
+      taxpayer_registered_name: 'Example Food Services Inc.', trade_name: null,
+      taxpayer_tin: '123456789', tin_branch_code: '000',
+      registered_address: '123 Example Street, Quezon City', tax_regime: 'vat_registered',
+      invoice_document_type: 'invoice', invoice_series_prefix: 'MAIN-',
+      fiscal_status: 'authorized', authorization_reference: 'REF-1', authorization_effective_at: now,
+      authorization_expires_at: null, authorized_at: now, software_name: 'Web2table POS',
+      software_version: '0.1.0', machine_or_terminal_identifier: null, created_at: now, updated_at: now,
+    };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: profile }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.saveFiscalProfile({
+      branchId: 'branch-1', taxpayerRegisteredName: 'Example Food Services Inc.',
+      taxpayerTin: '123456789', tinBranchCode: '000', registeredAddress: '123 Example Street, Quezon City',
+      taxRegime: 'vat_registered', invoiceSeriesPrefix: 'MAIN-', softwareName: 'Web2table POS',
+      softwareVersion: '0.1.0',
+    })).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 502 });
+  });
+
 });
