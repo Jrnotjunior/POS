@@ -22,6 +22,12 @@ export function escapeReceiptHtml(value: string): string {
   })[character] ?? character);
 }
 
+function formatSignedCentavos(value: number): string {
+  if (!Number.isSafeInteger(value)) throw new RangeError('Cash variance must be a safe integer in centavos.');
+  const formatted = formatPhp(moneyFromCentavos(Math.abs(value)));
+  return value < 0 ? `-${formatted}` : formatted;
+}
+
 function documentShell(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeReceiptHtml(title)}</title><style>
     @page{margin:8mm}*{box-sizing:border-box}body{font:12px/1.45 Arial,sans-serif;color:#111;max-width:340px;margin:0 auto;padding:8px}
@@ -92,7 +98,7 @@ export function renderZReadingHtml(shift: PosClosedShift, context: ShiftReportCo
     { label: 'Opening cash', value: formatPhp(moneyFromCentavos(shift.opening_cash_centavos)) },
     { label: 'Expected cash', value: formatPhp(moneyFromCentavos(shift.expected_cash_centavos)) },
     { label: 'Counted cash', value: formatPhp(moneyFromCentavos(shift.counted_cash_centavos)) },
-    { label: 'Cash variance', value: formatPhp(moneyFromCentavos(shift.cash_variance_centavos)) },
+    { label: 'Cash variance', value: formatSignedCentavos(shift.cash_variance_centavos) },
     { label: 'Reading type', value: 'Non-fiscal operational close' },
   ], context, generatedAt);
 }
