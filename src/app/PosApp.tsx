@@ -159,10 +159,21 @@ export function PosApp() {
 
   async function loadSales() {
     if (!apiClient || !session) return;
-    setSalesLoading(true); setSalesError('');
-    try { setSales(await apiClient.getBranchSales(session.branchId)); }
-    catch (error) { setSalesError(error instanceof Error ? error.message : 'Could not load transaction history.'); }
-    finally { setSalesLoading(false); }
+    const requestedBranchId = session.branchId;
+    setSalesLoading(true);
+    setSalesError('');
+    // Clear previously displayed records before fetching this branch's data.
+    // This prevents a previous branch's transactions lingering during a branch/session change.
+    setSales([]);
+    try {
+      const branchSales = await apiClient.getBranchSales(requestedBranchId);
+      // Ignore a stale response if the authenticated branch changed while the request was in flight.
+      if (sessionRef.current?.branchId === requestedBranchId) setSales(branchSales);
+    } catch (error) {
+      setSalesError(error instanceof Error ? error.message : 'Could not load transaction history.');
+    } finally {
+      setSalesLoading(false);
+    }
   }
 
   useEffect(() => { if (view === 'transactions' && authenticated && session) void loadSales(); }, [view, authenticated, session?.branchId]);
