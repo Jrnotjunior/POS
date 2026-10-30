@@ -3,6 +3,42 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const allowedOrigins = new Set(["https://app.web2table.io","https://jrnotjunior.github.io","http://localhost:5173","http://127.0.0.1:5173"]);
 type Rec = Record<string, unknown>;
 
+type JsonObjectRead = { ok: true; value: Rec } | { ok: false; reason: "too_large" | "invalid" };
+
+async function readJsonObject(req: Request, maxBytes: number): Promise<JsonObjectRead> {
+  if (!req.body) return { ok: false, reason: "invalid" };
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, reason: "too_large" };
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { ok: false, reason: "invalid" };
+    }
+    return { ok: true, value: parsed as Rec };
+  } catch {
+    return { ok: false, reason: "invalid" };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function response(req: Request, body: unknown, status = 200, requestId = crypto.randomUUID()) {
   const origin = req.headers.get("Origin") ?? "";
   const headers: Record<string,string> = {
@@ -68,10 +104,12 @@ Deno.serve(async(req:Request)=>{
     if(isShiftGet||isShiftOpen||isShiftClose){
       let body:Rec={};
       if(isShiftOpen||isShiftClose){
-        const length=Number(req.headers.get("Content-Length")??"0");
-        if(length>10000)return response(req,err("VALIDATION_ERROR","The shift request is too large.",requestId),413,requestId);
-        try{const parsed:unknown=await req.json();if(typeof parsed!=="object"||parsed===null||Array.isArray(parsed))throw new Error("invalid");body=parsed as Rec;}
-        catch{return response(req,err("VALIDATION_ERROR","Provide a valid JSON shift request.",requestId),400,requestId);}
+        const parsedBody = await readJsonObject(req, 10000);
+        if (!parsedBody.ok) {
+          const tooLarge = parsedBody.reason === "too_large";
+          return response(req, err("VALIDATION_ERROR", tooLarge ? "The shift request is too large." : "Provide a valid JSON shift request.", requestId), tooLarge ? 413 : 400, requestId);
+        }
+        body = parsedBody.value;
       }
       const branchId=typeof (isShiftGet?new URL(req.url).searchParams.get("branchId"):body.branchId)==="string"
         ? String(isShiftGet?new URL(req.url).searchParams.get("branchId"):body.branchId) : "";
@@ -101,11 +139,12 @@ Deno.serve(async(req:Request)=>{
       return response(req,{data:shift,requestId},isShiftOpen?201:200,requestId);
     }
     if(isSale){
-      const length=Number(req.headers.get("Content-Length")??"0");
-      if(length>50000)return response(req,err("VALIDATION_ERROR","The sale request is too large.",requestId),413,requestId);
-      let body:Rec;
-      try{const parsed:unknown=await req.json();if(typeof parsed!=="object"||parsed===null||Array.isArray(parsed))throw new Error("invalid");body=parsed as Rec;}
-      catch{return response(req,err("VALIDATION_ERROR","Provide a valid JSON sale request.",requestId),400,requestId);}
+      const parsedBody = await readJsonObject(req, 50000);
+      if (!parsedBody.ok) {
+        const tooLarge = parsedBody.reason === "too_large";
+        return response(req, err("VALIDATION_ERROR", tooLarge ? "The sale request is too large." : "Provide a valid JSON sale request.", requestId), tooLarge ? 413 : 400, requestId);
+      }
+      const body = parsedBody.value;
       const branchId=typeof body.branchId==="string"?body.branchId:"";
       const idempotencyKey=typeof body.idempotencyKey==="string"?body.idempotencyKey:"";
       const cashTendered=body.cashTenderedCentavos;
@@ -144,10 +183,12 @@ Deno.serve(async(req:Request)=>{
     }
     let orderActionBody:Rec={};
     if(isOrderTransition){
-      const length=Number(req.headers.get("Content-Length")??"0");
-      if(length>10000)return response(req,err("VALIDATION_ERROR","The order action request is too large.",requestId),413,requestId);
-      try{const parsed:unknown=await req.json();if(typeof parsed!=="object"||parsed===null||Array.isArray(parsed))throw new Error("invalid");orderActionBody=parsed as Rec;}
-      catch{return response(req,err("VALIDATION_ERROR","Provide a valid JSON order action.",requestId),400,requestId);}
+      const parsedBody = await readJsonObject(req, 10000);
+      if (!parsedBody.ok) {
+        const tooLarge = parsedBody.reason === "too_large";
+        return response(req, err("VALIDATION_ERROR", tooLarge ? "The order action request is too large." : "Provide a valid JSON order action.", requestId), tooLarge ? 413 : 400, requestId);
+      }
+      orderActionBody = parsedBody.value;
       if(typeof orderActionBody.orderId!=="string"||!uuid(orderActionBody.orderId)||!["confirm","reject","cancel"].includes(String(orderActionBody.action)))
         return response(req,err("VALIDATION_ERROR","A valid order and supported cashier action are required.",requestId),400,requestId);
     }
