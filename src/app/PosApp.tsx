@@ -5,7 +5,7 @@ import { createConfiguredPosApiClient } from '../integrations/web2table/posApiCl
 import type { PosCashSaleHistoryItem, PosCashSaleResult, PosCashierShift, PosClosedShift, PosSessionContext, PosStaffOrder, PosStaffOrderAction } from '../integrations/web2table/posApiContract';
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
 import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
-import { subscribeToTenantOrderChanges } from '../integrations/web2table/posRealtime';
+import { subscribeToTenantOrderChanges, type PosRealtimeTable } from '../integrations/web2table/posRealtime';
 import '../styles/pos-auth.css';
 import '../styles/pos-transactions.css';
 
@@ -265,8 +265,11 @@ export function PosApp() {
       ? subscribeToTenantOrderChanges(
           supabaseAuth,
           session.tenantId,
-          () => {
-            if (active && document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
+          (table: PosRealtimeTable) => {
+            if (!active || document.visibilityState !== 'visible' || !navigator.onLine) return;
+            if (table === 'customer_orders' && view === 'orders') void loadOrders(true);
+            if (table === 'pos_sales' && view === 'transactions') void loadSales();
+            if (table === 'pos_cashier_shifts' && (view === 'shifts' || view === 'register')) void refreshShift();
           },
           setOrdersRealtimeStatus,
         )
