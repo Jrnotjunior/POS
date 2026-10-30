@@ -75,10 +75,6 @@ export function PosApp() {
     setCart((current) => changeCartQuantity(current, productId, delta));
   }
 
-  function startCheckout() {
-    setNotice('Demo only — checkout is not enabled until the trusted transaction API, staff authorization, and persistence are implemented.');
-  }
-
   return (
     <div className="pos-shell">
       <aside className="pos-sidebar" aria-label="Main navigation">
