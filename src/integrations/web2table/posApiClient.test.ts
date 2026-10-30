@@ -205,7 +205,7 @@ describe('POS API client', () => {
     const draft = {
       branchId: 'branch-1', taxpayerRegisteredName: 'Example Food Services Inc.',
       tradeName: 'Example Kitchen', taxpayerTin: '123456789', tinBranchCode: '000',
-      registeredAddress: '123 Example Street, Quezon City', taxRegime: 'vat_registered' as const,
+      registeredAddress: '123 Example Street, Quezon City', taxRegime: 'vat_registered' as const, invoiceDocumentType: 'invoice' as const,
       invoiceSeriesPrefix: 'MAIN-', softwareName: 'Web2table POS', softwareVersion: '0.1.0',
       machineOrTerminalIdentifier: null,
     };
@@ -234,7 +234,7 @@ describe('POS API client', () => {
     await expect(client.saveFiscalProfile({
       branchId: 'branch-1', taxpayerRegisteredName: 'Example Food Services Inc.',
       taxpayerTin: '123456789', tinBranchCode: '000', registeredAddress: '123 Example Street, Quezon City',
-      taxRegime: 'vat_registered', invoiceSeriesPrefix: 'MAIN-', softwareName: 'Web2table POS',
+      taxRegime: 'vat_registered', invoiceDocumentType: 'invoice', invoiceSeriesPrefix: 'MAIN-', softwareName: 'Web2table POS',
       softwareVersion: '0.1.0',
     })).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 502 });
   });
