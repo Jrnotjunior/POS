@@ -78,6 +78,20 @@ Relevant official references to review against the current taxpayer/provider rou
 - RMC No. 112-2026 (separate presentation/transitory guidance): https://www.bir.gov.ph/2026-Revenue-Memorandum-Circulars
 - RMO No. 15-2018 (post-evaluation, eSales journal and Z-reading context; confirm continuing applicability and later amendments): https://bir-cdn.bir.gov.ph/local/pdf/RMO_No.15-2018.pdf
 
+## 3B. Fiscal profile foundation
+
+A tenant/branch-scoped fiscal profile foundation has been added in migration `20261031120000_pos_fiscal_profile_foundation.sql`. It stores the taxpayer's registered name, optional trade name, TIN and branch code, registered address, declared tax regime, invoice series prefix, software identity/version, optional machine/terminal identifier, authorization reference/effective/expiry dates, and a guarded fiscal status.
+
+Security and audit controls:
+- Direct access is revoked from `public`, `anon`, and `authenticated`; access is intended only through the authenticated server API using the service role.
+- Composite tenant/branch foreign key prevents cross-tenant branch association.
+- A configuration audit table records creation/updates, status transitions, changed field names, actor, transaction ID and time; it deliberately excludes actual TIN/address values from the event payload.
+- Audit events reject UPDATE, DELETE and TRUNCATE.
+- A profile cannot be marked `authorized` unless authorization reference, effective date, authorizing user, and authorization timestamp are present.
+- Draft validation is shape validation only; it does not authorize issuance.
+
+This is a configuration/audit foundation, **not** a completed taxpayer setup flow. No tenant-facing endpoint currently reads or writes these profiles, and no sales are issued from this profile. The next implementation should add owner-only configuration endpoints with server-side tenant/branch authorization, strong audit actor attribution, approval/review workflow, and tests. Only then should the transaction tax model and controlled invoice number allocation be implemented. The fiscal status must not be set to `authorized` merely because fields are populated.
+
 ## 4. Regulatory references to verify before implementation
 
 Official sources reviewed on 2026-10-31; tax counsel must confirm current applicability and later amendments:
