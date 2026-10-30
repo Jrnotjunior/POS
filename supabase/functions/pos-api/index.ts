@@ -90,7 +90,17 @@ Deno.serve(async(req:Request)=>{
         if(code==="P0002")return response(req,err("CONFLICT",saleError.message,requestId),409,requestId);
         throw saleError;
       }
-      return response(req,{data:sale,requestId},201,requestId);
+      // The SQL RPC returns sale_id/sale_number, not the full public sale DTO.
+      // Re-read the persisted row so both first-time and idempotent retries return
+      // the same stable contract to the POS client.
+      const saleId=typeof sale?.sale_id==="string"?sale.sale_id:"";
+      if(!uuid(saleId))throw new Error("cash_sale_rpc_missing_sale_id");
+      const {data:savedSale,error:savedSaleError}=await admin.from("pos_sales")
+        .select("id,sale_number,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,created_at")
+        .eq("id",saleId).eq("tenant_id",memberships[0]?.tenant_id ?? "").eq("branch_id",branchId).maybeSingle();
+      if(savedSaleError)throw savedSaleError;
+      if(!savedSale)throw new Error("cash_sale_persisted_record_not_found");
+      return response(req,{data:savedSale,requestId},201,requestId);
     }
     // Owners can access active branches in their tenant. Cashiers must have an
     // explicit branch_memberships row; tenant membership alone is insufficient.
