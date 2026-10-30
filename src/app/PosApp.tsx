@@ -427,7 +427,7 @@ export function PosApp() {
           </> : view === 'orders' ? <>
             <section className="transactions-panel">
               <div className="transactions-heading">
-                <div><h2>Online orders</h2><p>{session?.branchName ?? 'Authorized branch'} · Orders remain managed by Web2table.</p></div>
+                <div><h2>Online orders</h2></div>
                 <button className="text-button" type="button" onClick={() => void loadOrders()} disabled={ordersLoading}>{ordersLoading ? 'Refreshing…' : 'Refresh'}</button>
               </div>
               <div className="transactions-toolbar">
