@@ -29,6 +29,13 @@ describe("fiscal configuration authorization contract", () => {
     expect(api).toContain('memberships.sort((a:Rec,b:Rec)=>Number(b.role==="restaurant_owner")-Number(a.role==="restaurant_owner"))');
   });
 
+  it("returns only active branches authorized for the resolved POS role", () => {
+    expect(api).toContain('if(isSession){');
+    expect(api).toContain('.eq("tenant_id",context.tenantId).eq("is_active",true)');
+    expect(api).toContain('.select("branch_id").eq("tenant_id",context.tenantId).eq("user_id",auth.user.id)');
+    expect(api).toContain('branchQuery=branchIds.length?branchQuery.in("id",branchIds):');
+    expect(api).toContain("branchName:context.branchName,branches,role");
+  });
   it("validates explicit effective dates and rejects duplicate rule codes", () => {
     expect(api).toContain('!isoDate(effectiveFrom)');
     expect(api).toContain('seenCodes.has(code)');
