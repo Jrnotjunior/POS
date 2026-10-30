@@ -188,8 +188,14 @@ export function createPosApiClient(options: PosApiClientOptions) {
       try { payload = await response.json() as unknown; }
       catch { throw new PosApiClientError('The POS service returned invalid JSON.', response.status, 'INVALID_RESPONSE'); }
       const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
-      if (!isRecord(data) || typeof data.id !== 'string' || !Number.isSafeInteger(data.sale_number) || !Number.isSafeInteger(data.total_centavos) || !Number.isSafeInteger(data.cash_tendered_centavos) || !Number.isSafeInteger(data.change_centavos)) {
-        throw new PosApiClientError('The POS service returned an invalid sale confirmation.', 502, 'INVALID_RESPONSE');
+      if (!isRecord(data) || typeof data.id !== 'string' || !Number.isSafeInteger(data.sale_number) || !Number.isSafeInteger(data.total_centavos) || !Number.isSafeInteger(data.cash_tendered_centavos) || !Number.isSafeInteger(data.change_centavos)
+        || !Array.isArray(data.items) || data.items.length === 0 || !data.items.every((item) => isRecord(item)
+          && Number.isSafeInteger(item.line_number) && Number(item.line_number) > 0
+          && typeof item.item_name_snapshot === 'string' && item.item_name_snapshot.trim().length > 0
+          && Number.isSafeInteger(item.unit_price_centavos) && Number(item.unit_price_centavos) >= 0
+          && Number.isSafeInteger(item.quantity) && Number(item.quantity) > 0
+          && Number.isSafeInteger(item.line_total_centavos) && Number(item.line_total_centavos) >= 0)) {
+        throw new PosApiClientError('The POS service returned an invalid sale confirmation or persisted receipt lines.', 502, 'INVALID_RESPONSE');
       }
       return data as unknown as PosCashSaleResult;
     },
