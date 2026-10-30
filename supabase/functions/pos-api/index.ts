@@ -97,7 +97,7 @@ Deno.serve(async(req:Request)=>{
       if(!uuid(saleId))throw new Error("cash_sale_rpc_missing_sale_id");
       const {data:savedSale,error:savedSaleError}=await admin.from("pos_sales")
         .select("id,sale_number,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,created_at")
-        .eq("id",saleId).eq("tenant_id",memberships[0]?.tenant_id ?? "").eq("branch_id",branchId).maybeSingle();
+        .eq("id",saleId).eq("branch_id",branchId).maybeSingle();
       if(savedSaleError)throw savedSaleError;
       if(!savedSale)throw new Error("cash_sale_persisted_record_not_found");
       return response(req,{data:savedSale,requestId},201,requestId);
