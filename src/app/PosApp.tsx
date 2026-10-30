@@ -270,7 +270,36 @@ export function PosApp() {
         <div className="pos-sidebar-bottom"><div className="pos-environment"><span className="status-dot" /> {connectionStatus === 'connected' ? 'Live restaurant data' : connectionStatus === 'error' ? 'Connection issue' : 'Prototype environment'}</div><p>Restaurant operations, connected.</p></div>
       </aside>
       <main className="pos-main" id={view}>
-        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => { await signOutPos(); setAuthenticated(false); setSession(null); setProducts([]); setCart([]); setConnectionStatus('loading'); }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div></header>
+        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
+            try { await signOutPos(); }
+            finally {
+              setAuthenticated(false);
+              setSession(null);
+              setProducts([]);
+              setCart([]);
+              setCategory('All items');
+              setSearch('');
+              setNotice('');
+              setView('register');
+              setCheckoutOpen(false);
+              setCashReceived('');
+              setSubmittingSale(false);
+              setLastSale(null);
+              setLastSaleItems([]);
+              pendingSaleKey.current = null;
+              setSales([]);
+              setSalesLoading(false);
+              setSalesError('');
+              setSalesSearch('');
+              setCashierShift(null);
+              setShiftActionBusy(false);
+              setOpeningCash('0.00');
+              setCountedCash('');
+              setShiftCloseNote('');
+              setLastClosedShift(null);
+              setConnectionStatus('loading');
+            }
+          }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div></header>
         <div className="pos-content">
           {view === 'register' ? <>
             
