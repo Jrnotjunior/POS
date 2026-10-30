@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
+import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 
 type Category = 'All items' | 'Meals' | 'Drinks' | 'Sides';
 type Product = { id: string; name: string; category: Exclude<Category, 'All items'>; price: Money; initials: string };
-type CartLine = { product: Product; quantity: number };
 
 const products: Product[] = [
   { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), initials: 'CB' },
@@ -29,25 +29,16 @@ export function PosApp() {
     return matchesCategory && matchesSearch;
   }), [category, search]);
 
-  const itemCount = cart.reduce((total, line) => total + line.quantity, 0);
-  const subtotal = cart.reduce((total, line) => total + multiplyMoney(line.product.price, line.quantity), 0) as Money;
+  const itemCount = countCartItems(cart);
+  const subtotal = calculateCartSubtotal(cart);
 
   function addProduct(product: Product) {
     setNotice('');
-    setCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
-      return existing
-        ? current.map((line) => line.product.id === product.id ? { ...line, quantity: line.quantity + 1 } : line)
-        : [...current, { product, quantity: 1 }];
-    });
+    setCart((current) => addToCart(current, product));
   }
 
   function changeQuantity(productId: string, delta: number) {
-    setCart((current) => current.flatMap((line) => {
-      if (line.product.id !== productId) return [line];
-      const quantity = line.quantity + delta;
-      return quantity > 0 ? [{ ...line, quantity }] : [];
-    }));
+    setCart((current) => changeCartQuantity(current, productId, delta));
   }
 
   function startCheckout() {
