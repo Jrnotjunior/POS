@@ -16,8 +16,8 @@ describe('fiscal document safety gate', () => {
     expect(html).toContain('NOT A TAX INVOICE');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>alert(1)</script>');
-    expect(html).toContain('15.00');
-    expect(html).toContain('20.00');
+    expect(html).toContain('150.00');
+    expect(html).toContain('200.00');
   });
 
   it('prints X reading preview only for an active shift', () => {
