@@ -1,6 +1,7 @@
 import {
   isValidPosMenuItem,
   isValidPosStaffOrder,
+  isValidPosFiscalProfile,
   type PosStaffOrder,
   type PosStaffOrderAction,
   type PosApiError,
@@ -11,6 +12,8 @@ import {
   type PosClosedShift,
   type PosMenuItem,
   type PosSessionContext,
+  type PosFiscalProfile,
+  type PosFiscalProfileDraft,
 } from './posApiContract';
 
 export type PosApiClientOptions = Readonly<{
@@ -220,6 +223,27 @@ export function createPosApiClient(options: PosApiClientOptions) {
       if (!isRecord(data) || data.success !== true || data.order_id !== orderId) {
         throw new PosApiClientError('The POS service returned an invalid order action confirmation.', 502, 'INVALID_RESPONSE');
       }
+    },
+
+    async getFiscalProfile(branchId: string): Promise<PosFiscalProfile | null> {
+      if (!branchId.trim()) throw new Error('A server-authorized branch context is required.');
+      const payload = await getJson(`/api/pos/v1/fiscal-profile?branchId=${encodeURIComponent(branchId)}`);
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (data === null) return null;
+      if (!isValidPosFiscalProfile(data) || data.branch_id !== branchId) {
+        throw new PosApiClientError('The POS service returned an invalid fiscal profile.', 502, 'INVALID_RESPONSE');
+      }
+      return data;
+    },
+
+    async saveFiscalProfile(draft: PosFiscalProfileDraft): Promise<PosFiscalProfile> {
+      if (!draft.branchId.trim()) throw new PosApiClientError('A server-authorized branch context is required.', 400, 'VALIDATION_ERROR');
+      const payload = await postJson('/api/pos/v1/fiscal-profile', draft as unknown as Record<string, unknown>);
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isValidPosFiscalProfile(data) || data.branch_id !== draft.branchId || data.fiscal_status !== 'draft') {
+        throw new PosApiClientError('The POS service returned an invalid fiscal profile save confirmation.', 502, 'INVALID_RESPONSE');
+      }
+      return data;
     },
 
     async getSession(): Promise<PosSessionContext> {
