@@ -421,12 +421,12 @@ export function PosApp() {
           <a className={view === 'transactions' ? 'is-active' : ''} href="#transactions" aria-current={view === 'transactions' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('transactions'); }}><span aria-hidden="true">◷</span> Transactions</a>
           <a className={view === 'orders' ? 'is-active' : ''} href="#orders" aria-current={view === 'orders' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('orders'); setOrdersNotice(''); }}><span aria-hidden="true">≡</span> Orders</a>
           <a className={view === 'shifts' ? 'is-active' : ''} href="#shifts" aria-current={view === 'shifts' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('shifts'); void refreshShift(); }}><span aria-hidden="true">▤</span> Shifts</a>
-          {session?.role === 'restaurant_owner' && <a className={view === 'fiscal' ? 'is-active' : ''} href="#fiscal" aria-current={view === 'fiscal' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('fiscal'); }}><span aria-hidden="true">▧</span> Taxpayer setup</a>}
+          {session?.role === 'restaurant_owner' && <><div className="pos-sidebar-label pos-management-label">MANAGEMENT</div><a className={view === 'fiscal' ? 'is-active' : ''} href="#fiscal" aria-current={view === 'fiscal' ? 'page' : undefined} onClick={(e) => { e.preventDefault(); setView('fiscal'); }}><span aria-hidden="true">⚙</span> Management</a></>}
         </nav>
         <div className="pos-sidebar-bottom"><div className="pos-environment"><span className="status-dot" /> {connectionStatus === 'connected' ? 'Live restaurant data' : connectionStatus === 'error' ? 'Connection issue' : 'Prototype environment'}</div><p>Restaurant operations, connected.</p></div>
       </aside>
       <main className="pos-main" id={view}>
-        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : view === 'orders' ? 'Orders' : view === 'fiscal' ? 'Taxpayer setup' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
+        <header className="pos-topbar"><div className="pos-breadcrumb">Workspace <span>/</span> <strong>{view === 'register' ? 'Register' : view === 'transactions' ? 'Transactions' : view === 'orders' ? 'Orders' : view === 'fiscal' ? 'Management' : 'Shifts'}</strong></div><div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => {
             try { await signOutPos(); }
             finally {
               setAuthenticated(false);
