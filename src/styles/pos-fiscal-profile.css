@@ -1,0 +1,11 @@
+.fiscal-profile-panel{max-width:1040px}
+.fiscal-profile-notice{margin:18px 24px 0;padding:12px 14px;border:1px solid #e2b86f;border-radius:10px;background:#fff8e9;color:#66440a;font-size:13px;line-height:1.5}
+.fiscal-profile-form{padding:20px 24px 24px}
+.fiscal-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.fiscal-profile-grid label{display:flex;flex-direction:column;gap:7px;min-width:0;font-size:13px;font-weight:600}
+.fiscal-profile-grid input,.fiscal-profile-grid select,.fiscal-profile-grid textarea{width:100%;min-width:0;border:1px solid #d8dce5;border-radius:8px;background:#fff;color:#202433;padding:10px 12px;font:inherit;font-weight:400}
+.fiscal-profile-grid input:focus,.fiscal-profile-grid select:focus,.fiscal-profile-grid textarea:focus{outline:2px solid #b9c9f8;outline-offset:1px;border-color:#657ed1}
+.fiscal-profile-grid textarea{resize:vertical}
+.fiscal-profile-wide{grid-column:1/-1}
+.fiscal-profile-actions{display:flex;justify-content:flex-end;margin-top:20px}
+@media(max-width:640px){.fiscal-profile-form{padding:16px}.fiscal-profile-notice{margin:16px 16px 0}.fiscal-profile-grid{grid-template-columns:minmax(0,1fr)}.fiscal-profile-wide{grid-column:auto}.fiscal-profile-actions .checkout-button{width:100%}}
