@@ -98,6 +98,37 @@ describe('POS API client', () => {
     expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/branches/branch-1/sales?limit=50', expect.objectContaining({ method: 'GET', credentials: 'omit' }));
   });
 
+  it('loads a branch-scoped staff order queue', async () => {
+    const order = {
+      id: 'order-1', order_number: 101, tenant_id: 'tenant-1', branch_id: 'branch-1',
+      branch_name: 'Main Branch', order_type: 'pickup', customer_name: 'Guest Customer',
+      customer_phone: '09123456789', delivery_address: null, delivery_notes: '',
+      subtotal_centavos: 37800, delivery_fee_centavos: 0, total_centavos: 37800,
+      order_status: 'pending_confirmation', payment_status: 'unpaid', payment_method: 'cash',
+      created_at: '2026-10-30T10:00:00Z', updated_at: '2026-10-30T10:01:00Z',
+      items: [{ id: 'line-1', line_number: 1, item_name: 'Burger', unit_price_centavos: 18900, quantity: 2, line_total_centavos: 37800, options: [] }],
+    };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: { orders: [order], filter: 'active' } }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.getStaffOrders('branch-1')).resolves.toEqual([order]);
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/orders?branchId=branch-1&filter=active', expect.objectContaining({
+      method: 'GET', credentials: 'omit',
+      headers: { Accept: 'application/json', Authorization: 'Bearer test-access-token' },
+    }));
+  });
+
+  it('submits only supported cashier order actions through the trusted API', async () => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: { success: true, order_id: 'order-1', order_status: 'confirmed' } }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.transitionStaffOrder('branch-1', 'order-1', 'confirm')).resolves.toBeUndefined();
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/orders/transition', expect.objectContaining({
+      method: 'POST', credentials: 'omit',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer test-access-token' },
+      body: JSON.stringify({ branchId: 'branch-1', orderId: 'order-1', action: 'confirm' }),
+    }));
+    await expect(client.transitionStaffOrder('branch-1', 'order-1', 'dispatch' as never)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
   it('loads the current cashier shift through the authenticated shift endpoint', async () => {
     const shift = { active: true, id: 'shift-1', status: 'open', opening_cash_centavos: 20000, cash_sales_centavos: 12500, expected_cash_centavos: 32500, opened_at: '2026-10-30T09:00:00Z' };
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: shift }));
