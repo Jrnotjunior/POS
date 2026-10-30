@@ -1,0 +1,40 @@
+.pos-auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: var(--color-background, #f7f9fc);
+}
+.pos-auth-card {
+  width: min(100%, 440px);
+  padding: 36px;
+  border: 1px solid var(--color-border, #dfe5ed);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(16 27 47 / 8%);
+}
+.pos-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 36px;
+  color: var(--color-navy, #101b2f);
+  font-weight: 800;
+  text-decoration: none;
+  line-height: 1.1;
+}
+.pos-auth-brand img { width: 44px; height: 44px; object-fit: contain; }
+.pos-auth-brand > span > span { color: var(--color-red, #b91c1c); }
+.pos-auth-brand small { display: block; margin-top: 5px; font-size: 9px; letter-spacing: .12em; }
+.pos-auth-card h1 { margin: 8px 0; color: var(--color-navy, #101b2f); font-size: 28px; }
+.pos-auth-subtitle { margin: 0 0 24px; color: var(--color-slate, #64748b); font-size: 14px; line-height: 1.6; }
+.pos-auth-form { display: grid; gap: 16px; }
+.pos-auth-form label { display: grid; gap: 7px; color: var(--color-navy, #101b2f); font-size: 13px; font-weight: 650; }
+.pos-auth-form input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border, #dfe5ed); border-radius: 8px; color: var(--color-navy, #101b2f); background: #fff; font: inherit; }
+.pos-auth-form input:focus-visible { outline: 2px solid var(--color-red, #b91c1c); outline-offset: 2px; }
+.pos-auth-form button { min-height: 46px; border: 0; border-radius: 8px; background: var(--color-navy, #101b2f); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.pos-auth-form button:disabled { cursor: wait; opacity: .65; }
+.pos-auth-form .pos-auth-secondary { border: 1px solid var(--color-border, #dfe5ed); background: #fff; color: var(--color-navy, #101b2f); }
+.pos-auth-error { margin: 0; color: #b91c1c; font-size: 13px; line-height: 1.5; }
+.pos-auth-security { margin: 22px 0 0; padding-top: 16px; border-top: 1px solid var(--color-border, #dfe5ed); color: var(--color-slate, #64748b); font-size: 11px; line-height: 1.6; }
+@media (max-width: 480px) { .pos-auth-card { padding: 26px 22px; } }
