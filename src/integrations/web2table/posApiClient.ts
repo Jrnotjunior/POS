@@ -167,7 +167,7 @@ export function createPosApiClient(options: PosApiClientOptions) {
     async createCashSale(request: PosCashSaleRequest): Promise<PosCashSaleResult> {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new PosApiClientError('Sign in to Web2table and complete MFA to access the POS.', 401, 'UNAUTHENTICATED');
-      if (!request.branchId.trim() || !request.idempotencyKey.trim() || !Number.isSafeInteger(request.cashTenderedCentavos) || request.cashTenderedCentavos < 1 || request.items.length < 1) {
+      if (!request.branchId.trim() || !request.idempotencyKey.trim() || !Number.isSafeInteger(request.cashTenderedCentavos) || request.cashTenderedCentavos < 1 || request.items.length < 1 || request.items.length > 50 || !request.items.every((item) => typeof item.itemId === 'string' && item.itemId.trim().length > 0 && Number.isSafeInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 100)) {
         throw new PosApiClientError('Check the cash received and sale items before submitting.', 400, 'VALIDATION_ERROR');
       }
       const response = await fetcher(`${baseUrl}/api/pos/v1/sales`, {
