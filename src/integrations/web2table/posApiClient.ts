@@ -8,6 +8,7 @@ import {
   type PosCashSaleHistoryItem,
   type PosCashSaleRequest,
   type PosLoyaltyBalance,
+  type PosLoyaltyCustomer,
   type PosCashSaleResult,
   type PosCashierShift,
   type PosClosedShift,
@@ -131,6 +132,21 @@ export function createPosApiClient(options: PosApiClientOptions) {
   }
 
   return {
+    async searchLoyaltyCustomers(branchId: string, query: string): Promise<PosLoyaltyCustomer[]> {
+      const normalized = query.trim();
+      if (!branchId.trim() || normalized.length < 2 || normalized.length > 80) {
+        throw new PosApiClientError('Enter at least 2 characters to search customers.', 400, 'VALIDATION_ERROR');
+      }
+      const payload = await getJson('/api/pos/v1/loyalty/customers?branchId=' + encodeURIComponent(branchId) + '&q=' + encodeURIComponent(normalized));
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!Array.isArray(data) || data.length > 20 || data.some((item) => !isRecord(item)
+        || typeof item.customerUserId !== 'string' || !item.customerUserId
+        || typeof item.displayName !== 'string' || typeof item.phoneLastFour !== 'string')) {
+        throw new PosApiClientError('The POS service returned an invalid customer search response.', 502, 'INVALID_RESPONSE');
+      }
+      return data as unknown as PosLoyaltyCustomer[];
+    },
+
     async getLoyaltyBalance(branchId: string, customerUserId: string): Promise<PosLoyaltyBalance> {
       if (!branchId.trim() || !customerUserId.trim()) {
         throw new PosApiClientError('A branch and customer identity are required.', 400, 'VALIDATION_ERROR');
