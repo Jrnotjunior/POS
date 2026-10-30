@@ -130,10 +130,10 @@ Deno.serve(async(req:Request)=>{
       const {data:shift,error:shiftError}=await admin.rpc(rpcName,rpcArgs);
       if(shiftError){
         const code=(shiftError as unknown as Rec).code;
-        if(code==="42501")return response(req,err("FORBIDDEN",shiftError.message,requestId),403,requestId);
-        if(code==="22023")return response(req,err("VALIDATION_ERROR",shiftError.message,requestId),400,requestId);
-        if(code==="23505")return response(req,err("CONFLICT",shiftError.message,requestId),409,requestId);
-        if(code==="P0002")return response(req,err("CONFLICT",shiftError.message,requestId),409,requestId);
+        if(code==="42501")return response(req,err("FORBIDDEN","You do not have permission to perform this shift action.",requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR","The shift request could not be accepted.",requestId),400,requestId);
+        if(code==="23505")return response(req,err("CONFLICT","The cashier shift state has changed. Refresh and try again.",requestId),409,requestId);
+        if(code==="P0002")return response(req,err("CONFLICT","The cashier shift state has changed. Refresh and try again.",requestId),409,requestId);
         throw shiftError;
       }
       return response(req,{data:shift,requestId},isShiftOpen?201:200,requestId);
@@ -164,9 +164,9 @@ Deno.serve(async(req:Request)=>{
       });
       if(saleError){
         const code=(saleError as unknown as Rec).code;
-        if(code==="42501")return response(req,err("FORBIDDEN",saleError.message,requestId),403,requestId);
-        if(code==="22023")return response(req,err("VALIDATION_ERROR",saleError.message,requestId),400,requestId);
-        if(code==="P0002")return response(req,err("CONFLICT",saleError.message,requestId),409,requestId);
+        if(code==="42501")return response(req,err("FORBIDDEN","You do not have permission to create this sale.",requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR","The sale request could not be accepted.",requestId),400,requestId);
+        if(code==="P0002")return response(req,err("CONFLICT","The sale could not be completed because the requested records changed.",requestId),409,requestId);
         throw saleError;
       }
       // The SQL RPC returns sale_id/sale_number, not the full public sale DTO.
@@ -226,8 +226,8 @@ Deno.serve(async(req:Request)=>{
       const {data:orderData,error:orderError}=await admin.rpc("list_staff_orders",{p_tenant_id:context.tenantId,p_filter:filter,p_limit:100});
       if(orderError){
         const code=(orderError as unknown as Rec).code;
-        if(code==="42501")return response(req,err("FORBIDDEN",orderError.message,requestId),403,requestId);
-        if(code==="22023")return response(req,err("VALIDATION_ERROR",orderError.message,requestId),400,requestId);
+        if(code==="42501")return response(req,err("FORBIDDEN","You do not have permission to view these orders.",requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR","The order filter could not be accepted.",requestId),400,requestId);
         throw orderError;
       }
       const rows=typeof orderData==="object"&&orderData!==null&&!Array.isArray(orderData)?(orderData as Rec).orders:[];
@@ -247,9 +247,9 @@ Deno.serve(async(req:Request)=>{
       });
       if(transitionError){
         const code=(transitionError as unknown as Rec).code;
-        if(code==="42501")return response(req,err("FORBIDDEN",transitionError.message,requestId),403,requestId);
-        if(code==="22023")return response(req,err("VALIDATION_ERROR",transitionError.message,requestId),400,requestId);
-        if(code==="P0002")return response(req,err("NOT_FOUND",transitionError.message,requestId),404,requestId);
+        if(code==="42501")return response(req,err("FORBIDDEN","You do not have permission to change this order.",requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR","The order action could not be accepted.",requestId),400,requestId);
+        if(code==="P0002")return response(req,err("NOT_FOUND","The order is unavailable or has changed.",requestId),404,requestId);
         throw transitionError;
       }
       return response(req,{data:transition,requestId},200,requestId);
