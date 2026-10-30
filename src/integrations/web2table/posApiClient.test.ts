@@ -142,4 +142,14 @@ describe('POS API client', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed cash sale line items before making a request', async () => {
+    const fetcher = vi.fn();
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    const base = { branchId: 'branch-1', idempotencyKey: 'key-1', cashTenderedCentavos: 50000 };
+    await expect(client.createCashSale({ ...base, items: [{ itemId: 'item-1', quantity: 0 }] })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(client.createCashSale({ ...base, items: [{ itemId: 'item-1', quantity: 101 }] })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(client.createCashSale({ ...base, items: Array.from({ length: 51 }, (_, index) => ({ itemId: `item-${index}`, quantity: 1 })) })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
 });
