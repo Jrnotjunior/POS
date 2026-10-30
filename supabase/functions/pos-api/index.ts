@@ -233,7 +233,7 @@ Deno.serve(async(req:Request)=>{
     memberships.sort((a:Rec,b:Rec)=>Number(b.role==="restaurant_owner")-Number(a.role==="restaurant_owner"));
     const ordersBranch=new URL(req.url).searchParams.get("branchId")??"";
     const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):(isOrders||isFiscalProfileGet||isFiscalTaxPoliciesGet)?ordersBranch:(isOrderTransition?String(orderActionBody.branchId??""):isFiscalProfileSave?String(fiscalProfileBody.branchId??""):(isFiscalTaxPolicyCreate?String(fiscalTaxPolicyBody.branchId??""):""));
-    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
+    if((isMenu||isSalesHistory||isOrders||isOrderTransition||isFiscalProfileGet||isFiscalProfileSave||isFiscalTaxPoliciesGet||isFiscalTaxPolicyCreate||isLoyaltyBalance)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
     let context:{tenantId:string;tenantName:string;branchId:string;branchName:string}|null=null;
     for(const m of memberships){
       const {data:t,error:te}=await admin.from("tenants").select("id,name").eq("id",m.tenant_id).eq("status","active").maybeSingle();
