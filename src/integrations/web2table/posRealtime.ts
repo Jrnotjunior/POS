@@ -4,8 +4,8 @@ export type PosRealtimeStatus = 'connecting' | 'connected' | 'disconnected' | 'e
 type TenantChangePayload = Readonly<{ table?: unknown }>;
 export type PosRealtimeTable = 'customer_orders' | 'pos_sales' | 'pos_cashier_shifts';
 
-function isPosRealtimeTable(value: unknown): value is PosRealtimeTable {
-  if (typeof value !== 'object' || value === null) return false;
+function isTenantChangePayload(value: unknown): value is TenantChangePayload & { table: PosRealtimeTable } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const table = (value as TenantChangePayload).table;
   return table === 'customer_orders' || table === 'pos_sales' || table === 'pos_cashier_shifts';
 }
@@ -29,7 +29,7 @@ export function subscribeToTenantOrderChanges(
   const channel = client.channel(`tenant:${tenantId}`, { config: { private: true } });
   channel
     .on('broadcast', { event: 'db_change' }, (message) => {
-      if (active && isPosRealtimeTable(message.payload)) onTableChange(message.payload.table as PosRealtimeTable);
+      if (active && isTenantChangePayload(message.payload)) onTableChange(message.payload.table);
     })
     .subscribe((status) => {
       if (!active) return;
