@@ -1,5 +1,8 @@
 import {
   isValidPosMenuItem,
+  isValidPosStaffOrder,
+  type PosStaffOrder,
+  type PosStaffOrderAction,
   type PosApiError,
   type PosCashSaleHistoryItem,
   type PosCashSaleRequest,
@@ -195,6 +198,28 @@ export function createPosApiClient(options: PosApiClientOptions) {
         throw new PosApiClientError('The POS service returned an invalid sales history response.', 502, 'INVALID_RESPONSE');
       }
       return items as PosCashSaleHistoryItem[];
+    },
+
+    async getStaffOrders(branchId: string, filter: 'active' | 'all' = 'active'): Promise<PosStaffOrder[]> {
+      if (!branchId.trim()) throw new Error('A server-authorized branch context is required.');
+      const payload = await getJson(`/api/pos/v1/orders?branchId=${encodeURIComponent(branchId)}&filter=${filter}`);
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      const orders = isRecord(data) && Array.isArray(data.orders) ? data.orders : data;
+      if (!Array.isArray(orders) || !orders.every(isValidPosStaffOrder)) {
+        throw new PosApiClientError('The POS service returned an invalid order queue response.', 502, 'INVALID_RESPONSE');
+      }
+      return orders as PosStaffOrder[];
+    },
+
+    async transitionStaffOrder(branchId: string, orderId: string, action: PosStaffOrderAction): Promise<void> {
+      if (!branchId.trim() || !orderId.trim() || !['confirm', 'reject', 'cancel'].includes(action)) {
+        throw new PosApiClientError('The order action is invalid.', 400, 'VALIDATION_ERROR');
+      }
+      const payload = await postJson('/api/pos/v1/orders/transition', { branchId, orderId, action });
+      const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
+      if (!isRecord(data) || data.success !== true || data.order_id !== orderId) {
+        throw new PosApiClientError('The POS service returned an invalid order action confirmation.', 502, 'INVALID_RESPONSE');
+      }
     },
 
     async getSession(): Promise<PosSessionContext> {
