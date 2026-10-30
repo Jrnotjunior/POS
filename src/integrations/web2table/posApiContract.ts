@@ -262,6 +262,12 @@ export type PosCashSaleResult = Readonly<{
 
 export type PosCashSaleHistoryItem = PosCashSaleResult;
 
+export type PosLoyaltyBalance = Readonly<{
+  customerUserId: string;
+  account: Readonly<{ points_balance: number; lifetime_points_earned: number; lifetime_points_redeemed: number; eligible_spend_centavos: number; updated_at: string | null }>;
+  settings: Readonly<{ enabled: boolean; amount_threshold: number | null; points_awarded: number; redemption_enabled: boolean; redemption_points: number; redemption_amount: number | null }>;
+}>;
+
 export type PosCashierShift = Readonly<{
   active: boolean;
   id?: string;
