@@ -74,6 +74,19 @@ Official sources reviewed on 2026-10-31; tax counsel must confirm current applic
 
 BIR materials distinguish taxpayer EIS certification/Permit to Transmit from provider-level accreditation. Verify current rules rather than relying on older advisories alone.
 
+## 4A. Critical ESP eligibility and timing check
+
+BIR RMC No. 110-2026 sets a substantially higher bar for third-party Electronic Invoicing Service Providers than a typical early-stage POS deployment. The published circular/advisories describe, among other requirements, solution-specific accreditation; legal and financial capacity; accountable local technical/compliance/data-protection/security officers; privacy and data-residency compliance; favorable source-code review and vulnerability assessment/penetration testing; security certifications (including ISO/IEC 27001, 27017, 27018 and SOC 1/SOC 2 or accepted equivalents); end-to-end interoperability testing; and load, failover, backup and recovery testing. The circular also sets operating-track-record thresholds. Have Philippine tax counsel review the full official circular and Annex A to confirm the exact criteria and any acceptable equivalents before making an eligibility decision. Do not assume that a plan or source-code changes alone satisfy these requirements.
+
+The BIR's published advisory states that the initial ESP application window was **16–30 October 2026**. As of this plan's review date (31 October 2026), that window has ended. No application is assumed to have been submitted. Management must contact the BIR's official ESP accreditation channel to confirm whether a subsequent window, transition instruction, or other route is available; do not imply that a late application will be accepted. The BIR EIS portal lists **eis-esp_accreditation@bir.gov.ph** for ESP accreditation inquiries. Confirm the address and process on the official portal before sending.
+
+**Decision gate:** First decide whether Web2Table is actually offering e-invoicing/transmission services to separate legal entities (potential ESP scope) or whether the intended product path is POS/CAS registration plus each taxpayer's own required EIS permissions. Under RMC 110-2026, offering a system/service to customers or other separate juridical entities can be treated as an ESP service unless exempted by BIR. This is a legal classification question, not a software-only decision. Ask BIR/tax counsel for a written position before production rollout.
+
+Official references:
+- BIR RMC No. 110-2026 listing: https://www.bir.gov.ph/2026-Revenue-Memorandum-Circulars
+- BIR EIS portal and ESP accreditation contact/advisories: https://eis.bir.gov.ph/
+- Independent tax advisory summarizing the ESP application window and eligibility framework: https://kpmg.com/us/en/taxnewsflash/news/2026/10/philippines-accreditation-framework-e-invoicing-service-providers.html
+
 ## 5. Application and evidence checklist
 
 - [ ] Named accountable owner and authorized applicant.
