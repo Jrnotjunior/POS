@@ -148,7 +148,7 @@ Deno.serve(async(req:Request)=>{
       const branchId=typeof body.branchId==="string"?body.branchId:"";
       const idempotencyKey=typeof body.idempotencyKey==="string"?body.idempotencyKey:"";
       const cashTendered=body.cashTenderedCentavos;
-      if(!uuid(branchId)||!uuid(idempotencyKey)||!Number.isSafeInteger(cashTendered)||Number(cashTendered)<1||!Array.isArray(body.items)||body.items.length<1||body.items.length>50)
+      if(!uuid(branchId)||!uuid(idempotencyKey)||!Number.isSafeInteger(cashTendered)||Number(cashTendered)<1||Number(cashTendered)>2000000000||!Array.isArray(body.items)||body.items.length<1||body.items.length>50)
         return response(req,err("VALIDATION_ERROR","Branch, request key, cash received, and sale items are required.",requestId),400,requestId);
       const saleItems:Rec[]=[];
       for(const value of body.items){
@@ -284,7 +284,7 @@ Deno.serve(async(req:Request)=>{
     }).filter((i:Rec)=>typeof i.id==="string"&&typeof i.categoryId==="string"&&typeof i.categoryName==="string"&&i.categoryName.length>0&&typeof i.name==="string"&&Number.isSafeInteger(i.unitPriceCentavos)&&Number(i.unitPriceCentavos)>=0);
     return response(req,{data,requestId},200,requestId);
   }catch(e){
-    console.error(JSON.stringify({event:"pos_api_request_failed",requestId,message:e instanceof Error?e.message:"unknown_error"}));
+    console.error(JSON.stringify({event:"pos_api_request_failed",requestId,errorType:e instanceof Error?e.name:"unknown_error"}));
     return response(req,err("INTERNAL_ERROR","The POS service could not complete the request.",requestId),500,requestId);
   }
 });
