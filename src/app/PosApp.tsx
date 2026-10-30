@@ -113,7 +113,7 @@ export function PosApp() {
   const itemCount = countCartItems(cart);
   const subtotal = calculateCartSubtotal(cart);
   const receivedCentavos = Math.round((Number(cashReceived) || 0) * 100);
-  const dueCentavos = Math.round(subtotal * 100);
+  const dueCentavos = subtotal;
   const changeCentavos = receivedCentavos - dueCentavos;
 
   function addProduct(product: Product) { setNotice(''); setCart((current) => addToCart(current, product)); }
