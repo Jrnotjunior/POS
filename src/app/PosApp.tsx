@@ -227,7 +227,7 @@ export function PosApp() {
       if (requestId !== ordersRequestId.current) return;
       setOrdersError(error instanceof Error ? error.message : 'Could not load online orders.');
     } finally {
-      if (requestId === ordersRequestId.current && !quiet) setOrdersLoading(false);
+      if (requestId === ordersRequestId.current) setOrdersLoading(false);
     }
   }
 
