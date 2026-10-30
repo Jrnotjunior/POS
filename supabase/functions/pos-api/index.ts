@@ -58,11 +58,13 @@ Deno.serve(async(req:Request)=>{
     const salesMatch=path.match(/\/branches\/([^/]+)\/sales$/);
     const isMenu=req.method==="GET"&&Boolean(match)&&(path.includes("/api/pos/v1/")||path.includes("/pos-api/"));
     const isSalesHistory=req.method==="GET"&&Boolean(salesMatch)&&(path.includes("/api/pos/v1/")||path.includes("/pos-api/"));
+    const isOrders=req.method==="GET"&&path.endsWith("/api/pos/v1/orders");
+    const isOrderTransition=req.method==="POST"&&path.endsWith("/api/pos/v1/orders/transition");
     const isSale=req.method==="POST"&&path.endsWith("/api/pos/v1/sales");
     const isShiftGet=req.method==="GET"&&path.endsWith("/api/pos/v1/shift");
     const isShiftOpen=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/open");
     const isShiftClose=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/close");
-    if(!isSession&&!isMenu&&!isSalesHistory&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    if(!isSession&&!isMenu&&!isSalesHistory&&!isOrders&&!isOrderTransition&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
     if(isShiftGet||isShiftOpen||isShiftClose){
       let body:Rec={};
       if(isShiftOpen||isShiftClose){
@@ -140,19 +142,29 @@ Deno.serve(async(req:Request)=>{
       if(!savedSale)throw new Error("cash_sale_persisted_record_not_found");
       return response(req,{data:savedSale,requestId},201,requestId);
     }
+    let orderActionBody:Rec={};
+    if(isOrderTransition){
+      const length=Number(req.headers.get("Content-Length")??"0");
+      if(length>10000)return response(req,err("VALIDATION_ERROR","The order action request is too large.",requestId),413,requestId);
+      try{const parsed:unknown=await req.json();if(typeof parsed!=="object"||parsed===null||Array.isArray(parsed))throw new Error("invalid");orderActionBody=parsed as Rec;}
+      catch{return response(req,err("VALIDATION_ERROR","Provide a valid JSON order action.",requestId),400,requestId);}
+      if(typeof orderActionBody.orderId!=="string"||!uuid(orderActionBody.orderId)||!["confirm","reject","cancel"].includes(String(orderActionBody.action)))
+        return response(req,err("VALIDATION_ERROR","A valid order and supported cashier action are required.",requestId),400,requestId);
+    }
     // Owners can access active branches in their tenant. Cashiers must have an
     // explicit branch_memberships row; tenant membership alone is insufficient.
     const {data:memberships,error:membershipError}=await admin.from("tenant_memberships").select("tenant_id,role").eq("user_id",auth.user.id).eq("status","active").in("role",["restaurant_owner","cashier"]).limit(50);
     if(membershipError)throw membershipError;
     if(!memberships?.length)return response(req,err("FORBIDDEN","Your account does not have an active owner or cashier POS permission.",requestId),403,requestId);
-    const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):"";
-    if((isMenu||isSalesHistory)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
+    const ordersBranch=new URL(req.url).searchParams.get("branchId")??"";
+    const requestedBranch=match?decodeURIComponent(match[1]):salesMatch?decodeURIComponent(salesMatch[1]):isOrders?ordersBranch:isOrderTransition?String(orderActionBody.branchId??""):"";
+    if((isMenu||isSalesHistory||isOrders||isOrderTransition)&&!uuid(requestedBranch))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
     let context:{tenantId:string;tenantName:string;branchId:string;branchName:string}|null=null;
     for(const m of memberships){
       const {data:t,error:te}=await admin.from("tenants").select("id,name").eq("id",m.tenant_id).eq("status","active").maybeSingle();
       if(te)throw te;if(!t)continue;
       let q=admin.from("branches").select("id,tenant_id,name").eq("tenant_id",t.id).eq("is_active",true);
-      if(isMenu||isSalesHistory)q=q.eq("id",requestedBranch);
+      if(isMenu||isSalesHistory||isOrders||isOrderTransition)q=q.eq("id",requestedBranch);
       if(m.role==="cashier") {
         const {data:assigned,error:assignedError}=await admin.from("branch_memberships").select("branch_id").eq("tenant_id",t.id).eq("user_id",auth.user.id);
         if(assignedError)throw assignedError;
@@ -164,9 +176,36 @@ Deno.serve(async(req:Request)=>{
       if(be)throw be;
       if(b){context={tenantId:t.id,tenantName:t.name,branchId:b.id,branchName:b.name};break;}
     }
-    if(!context)return response(req,err(isMenu||isSalesHistory?"NOT_FOUND":"FORBIDDEN",isMenu||isSalesHistory?"The requested branch is unavailable or not authorized.":"No active branch is available for your restaurant account.",requestId),isMenu||isSalesHistory?404:403,requestId);
+    if(!context)return response(req,err(isMenu||isSalesHistory||isOrders||isOrderTransition?"NOT_FOUND":"FORBIDDEN",isMenu||isSalesHistory||isOrders||isOrderTransition?"The requested branch is unavailable or not authorized.":"No active branch is available for your restaurant account.",requestId),isMenu||isSalesHistory||isOrders||isOrderTransition?404:403,requestId);
     const role=memberships.find((m:Rec)=>m.tenant_id===context!.tenantId)?.role;
     if(isSession)return response(req,{data:{userId:auth.user.id,displayName:displayName(auth.user),tenantId:context.tenantId,tenantName:context.tenantName,branchId:context.branchId,branchName:context.branchName,role,permissions:["pos.session.read","pos.menu.read","pos.sales.read","pos.sale.create"]},requestId},200,requestId);
+    if(isOrders){
+      const filter=new URL(req.url).searchParams.get("filter")??"active";
+      if(filter!=="active"&&filter!=="all")return response(req,err("VALIDATION_ERROR","Order filter must be active or all.",requestId),400,requestId);
+      const {data:orderData,error:orderError}=await admin.rpc("list_staff_orders",{p_tenant_id:context.tenantId,p_filter:filter,p_limit:100});
+      if(orderError){
+        const code=(orderError as unknown as Rec).code;
+        if(code==="42501")return response(req,err("FORBIDDEN",orderError.message,requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR",orderError.message,requestId),400,requestId);
+        throw orderError;
+      }
+      const rows=typeof orderData==="object"&&orderData!==null&&!Array.isArray(orderData)?(orderData as Rec).orders:[];
+      const orders=Array.isArray(rows)?rows.filter((order:unknown)=>typeof order==="object"&&order!==null&&(order as Rec).branch_id===context!.branchId):[];
+      return response(req,{data:{orders,filter},requestId},200,requestId);
+    }
+    if(isOrderTransition){
+      const {data:transition,error:transitionError}=await admin.rpc("transition_staff_order",{
+        p_tenant_id:context.tenantId,p_order_id:String(orderActionBody.orderId),p_action:String(orderActionBody.action)
+      });
+      if(transitionError){
+        const code=(transitionError as unknown as Rec).code;
+        if(code==="42501")return response(req,err("FORBIDDEN",transitionError.message,requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR",transitionError.message,requestId),400,requestId);
+        if(code==="P0002")return response(req,err("NOT_FOUND",transitionError.message,requestId),404,requestId);
+        throw transitionError;
+      }
+      return response(req,{data:transition,requestId},200,requestId);
+    }
     if(isSalesHistory){
       const rawLimit=Number(new URL(req.url).searchParams.get("limit")??"50");
       const limit=Math.max(1,Math.min(100,Number.isFinite(rawLimit)?Math.trunc(rawLimit):50));
