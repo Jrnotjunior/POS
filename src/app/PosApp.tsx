@@ -60,6 +60,7 @@ export function PosApp() {
   const [ordersFilter, setOrdersFilter] = useState<'active' | 'all'>('active');
   const [busyOrderId, setBusyOrderId] = useState('');
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(() => new Set());
+  const [ordersRealtimeStatus, setOrdersRealtimeStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const ordersRequestId = useRef(0);
   const [cashierShift, setCashierShift] = useState<PosCashierShift | null>(null);
   const shiftRequestId = useRef(0);
@@ -249,29 +250,62 @@ export function PosApp() {
   }
 
   useEffect(() => {
-    if (view !== 'orders' || !authenticated || !session) return;
+    if (view !== 'orders' || !authenticated || !session) {
+      setOrdersRealtimeStatus('disconnected');
+      return;
+    }
     let active = true;
+    setOrdersRealtimeStatus('connecting');
+    void loadOrders();
+
+    // SaaS emits metadata-only tenant broadcasts when customer_orders changes.
+    // Reload the branch-scoped queue through the trusted POS API; never trust
+    // realtime payloads as order data or authorization.
+    const channel = supabaseAuth?.channel(`tenant:${session.tenantId}`, {
+      config: { private: true },
+    });
+    if (!channel) {
+      setOrdersRealtimeStatus('error');
+    } else {
+      channel
+        .on('broadcast', { event: 'db_change' }, (message) => {
+          const payload = message.payload;
+          if (active && payload && payload.table === 'customer_orders'
+            && document.visibilityState === 'visible' && navigator.onLine) {
+            void loadOrders(true);
+          }
+        })
+        .subscribe((status) => {
+          if (!active) return;
+          if (status === 'SUBSCRIBED') {
+            setOrdersRealtimeStatus('connected');
+            // Reconcile once on connection so changes missed while offline are recovered.
+            if (navigator.onLine && document.visibilityState === 'visible') void loadOrders(true);
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            setOrdersRealtimeStatus('error');
+          } else if (status === 'CLOSED') {
+            setOrdersRealtimeStatus('disconnected');
+          } else {
+            setOrdersRealtimeStatus('connecting');
+          }
+        });
+    }
+
     const refreshWhenVisible = () => {
       if (active && document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
     };
-    void loadOrders();
-    // Until the SaaS exposes an authorized realtime event contract, reconcile
-    // periodically and refresh immediately after tab focus/network recovery.
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
-    }, 15000);
     window.addEventListener('focus', refreshWhenVisible);
     window.addEventListener('online', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       active = false;
-      window.clearInterval(timer);
+      if (channel) void supabaseAuth?.removeChannel(channel);
       window.removeEventListener('focus', refreshWhenVisible);
       window.removeEventListener('online', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       ordersRequestId.current += 1;
     };
-  }, [view, authenticated, session?.branchId, ordersFilter]);
+  }, [view, authenticated, session?.branchId, session?.tenantId, ordersFilter]);
 
   const categoryOptions = useMemo<Category[]>(() => ['All items', ...new Set(products.map((product) => product.category))], [products]);
   const visibleProducts = useMemo(() => products.filter((product) => {
@@ -442,7 +476,7 @@ export function PosApp() {
             <section className="transactions-panel">
               <div className="transactions-heading">
                 <div><h2>Online orders</h2></div>
-                <button className="text-button" type="button" onClick={() => void loadOrders()} disabled={ordersLoading}>{ordersLoading ? 'Refreshing…' : 'Refresh'}</button>
+                <div className="cash-shortcuts"><span className={ordersRealtimeStatus === 'connected' ? 'paid-pill' : 'catalog-count'} role="status">{ordersRealtimeStatus === 'connected' ? 'REALTIME CONNECTED' : ordersRealtimeStatus === 'error' ? 'REALTIME UNAVAILABLE' : ordersRealtimeStatus === 'disconnected' ? 'REALTIME DISCONNECTED' : 'CONNECTING REALTIME'}</span><button className="text-button" type="button" onClick={() => void loadOrders()} disabled={ordersLoading}>{ordersLoading ? 'Refreshing…' : 'Refresh'}</button></div>
               </div>
               <div className="transactions-toolbar">
                 <div className="cash-shortcuts" role="group" aria-label="Order filter">
