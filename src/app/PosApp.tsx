@@ -256,8 +256,12 @@ export function PosApp() {
       setView('register');
       // Prefer persisted sale-line snapshots for the receipt; a history refresh failure
       // must not turn an already-saved sale into an apparent checkout failure.
+      const requestedBranchId = session.branchId;
+      const historyRequestId = ++salesRequestId.current;
       try {
-        const refreshedSales = await apiClient.getBranchSales(session.branchId);
+        const refreshedSales = await apiClient.getBranchSales(requestedBranchId);
+        // A post-checkout refresh must not restore history for a stale branch/session.
+        if (historyRequestId !== salesRequestId.current) return;
         setSales(refreshedSales);
         const persistedSale = refreshedSales.find((sale) => sale.id === result.id);
         if (persistedSale) {
