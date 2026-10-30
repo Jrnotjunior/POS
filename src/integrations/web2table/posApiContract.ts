@@ -20,7 +20,7 @@ export type PosMenuItem = Readonly<{
   categoryName: string;
   name: string;
   description: string;
-  imagePath: string | null;
+  imagePath?: string | null;
   unitPriceCentavos: number;
   available: boolean;
 }>;
@@ -73,7 +73,7 @@ export function isValidPosMenuItem(value: PosMenuItem): boolean {
     && Boolean(value.categoryId.trim())
     && Boolean(value.categoryName.trim())
     && Boolean(value.name.trim())
-    && (value.imagePath === null || typeof value.imagePath === 'string')
+    && (value.imagePath === undefined || value.imagePath === null || typeof value.imagePath === 'string')
     && isNonNegativeSafeInteger(value.unitPriceCentavos)
     && typeof value.available === 'boolean';
 }
