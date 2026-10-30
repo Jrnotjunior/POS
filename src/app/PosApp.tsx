@@ -54,6 +54,7 @@ export function PosApp() {
   const [salesError, setSalesError] = useState('');
   const [salesSearch, setSalesSearch] = useState('');
   const [cashierShift, setCashierShift] = useState<PosCashierShift | null>(null);
+  const shiftRequestId = useRef(0);
   const [, setShiftLoading] = useState(false);
   const [shiftActionBusy, setShiftActionBusy] = useState(false);
   const [openingCash, setOpeningCash] = useState('0.00');
@@ -98,6 +99,7 @@ export function PosApp() {
     if (!apiClient || !authenticated) return;
     const client = apiClient;
     let active = true;
+    const initialShiftRequestId = ++shiftRequestId.current;
     async function loadAuthorizedMenu() {
       try {
         const authorizedSession = await client.getSession();
@@ -107,7 +109,7 @@ export function PosApp() {
         ]);
         if (!active) return;
         setSession(authorizedSession);
-        setCashierShift(shift.active ? shift : null);
+        if (initialShiftRequestId === shiftRequestId.current) setCashierShift(shift.active ? shift : null);
         setProducts(menu.filter((item) => item.available).map((item) => ({
           id: item.id, name: item.name, category: item.categoryName,
           price: moneyFromCentavos(item.unitPriceCentavos),
@@ -122,40 +124,63 @@ export function PosApp() {
       }
     }
     void loadAuthorizedMenu();
-    return () => { active = false; };
+    return () => { active = false; shiftRequestId.current += 1; };
   }, [apiClient, authenticated]);
 
   async function refreshShift() {
     if (!apiClient || !session) return;
+    const requestedBranchId = session.branchId;
+    const requestId = ++shiftRequestId.current;
     setShiftLoading(true);
-    try { const shift = await apiClient.getCashierShift(session.branchId); setCashierShift(shift.active ? shift : null); }
-    catch (error) { setNotice(error instanceof Error ? error.message : 'Could not load cashier shift.'); }
-    finally { setShiftLoading(false); }
+    try {
+      const shift = await apiClient.getCashierShift(requestedBranchId);
+      if (requestId !== shiftRequestId.current) return;
+      setCashierShift(shift.active ? shift : null);
+    } catch (error) {
+      if (requestId !== shiftRequestId.current) return;
+      setNotice(error instanceof Error ? error.message : 'Could not load cashier shift.');
+    } finally {
+      if (requestId === shiftRequestId.current) setShiftLoading(false);
+    }
   }
 
   async function openShift() {
     if (!apiClient || !session || shiftActionBusy) return;
     const amount = Math.round((Number(openingCash) || 0) * 100);
     if (!Number.isSafeInteger(amount) || amount < 0) { setNotice('Enter a valid opening cash amount.'); return; }
+    const requestId = ++shiftRequestId.current;
+    const requestedBranchId = session.branchId;
     setShiftActionBusy(true); setNotice('');
     try {
-      const shift = await apiClient.openCashierShift(session.branchId, amount);
+      const shift = await apiClient.openCashierShift(requestedBranchId, amount);
+      if (requestId !== shiftRequestId.current) return;
       setCashierShift(shift); setOpeningCash('0.00'); setNotice('Cashier shift opened successfully.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not open cashier shift.'); }
-    finally { setShiftActionBusy(false); }
+    } catch (error) {
+      if (requestId !== shiftRequestId.current) return;
+      setNotice(error instanceof Error ? error.message : 'Could not open cashier shift.');
+    } finally {
+      if (requestId === shiftRequestId.current) setShiftActionBusy(false);
+    }
   }
 
   async function closeShift() {
     if (!apiClient || !session || shiftActionBusy) return;
     const amount = Math.round((Number(countedCash) || 0) * 100);
     if (!Number.isSafeInteger(amount) || amount < 0 || !countedCash.trim()) { setNotice('Enter the counted cash amount.'); return; }
+    const requestId = ++shiftRequestId.current;
+    const requestedBranchId = session.branchId;
     setShiftActionBusy(true); setNotice('');
     try {
-      const closed = await apiClient.closeCashierShift(session.branchId, amount, shiftCloseNote);
+      const closed = await apiClient.closeCashierShift(requestedBranchId, amount, shiftCloseNote);
+      if (requestId !== shiftRequestId.current) return;
       setLastClosedShift(closed); setCashierShift(null); setCountedCash(''); setShiftCloseNote('');
       setNotice('Cashier shift closed. Review the cash variance below.');
-    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not close cashier shift.'); }
-    finally { setShiftActionBusy(false); }
+    } catch (error) {
+      if (requestId !== shiftRequestId.current) return;
+      setNotice(error instanceof Error ? error.message : 'Could not close cashier shift.');
+    } finally {
+      if (requestId === shiftRequestId.current) setShiftActionBusy(false);
+    }
   }
 
   async function loadSales() {
@@ -296,6 +321,7 @@ export function PosApp() {
               setSalesLoading(false);
               setSalesError('');
               setSalesSearch('');
+              shiftRequestId.current += 1;
               setCashierShift(null);
               setShiftActionBusy(false);
               setOpeningCash('0.00');
