@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
@@ -38,6 +38,7 @@ export function PosApp() {
   const [connectionStatus, setConnectionStatus] = useState<'demo' | 'loading' | 'connected' | 'error'>(apiClient ? 'loading' : 'demo');
   const [category, setCategory] = useState<Category>('All items');
   const [search, setSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [notice, setNotice] = useState('');
   const [view, setView] = useState<View>('register');
@@ -67,6 +68,21 @@ export function PosApp() {
     void checkExistingSession();
     return () => { active = false; };
   }, [apiClient]);
+
+  useEffect(() => {
+    function handleSearchShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (event.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearch('');
+        searchInputRef.current?.blur();
+      }
+    }
+    window.addEventListener('keydown', handleSearchShortcut);
+    return () => window.removeEventListener('keydown', handleSearchShortcut);
+  }, []);
 
   useEffect(() => {
     if (!apiClient || !authenticated) return;
@@ -177,7 +193,7 @@ export function PosApp() {
             <div className="pos-workspace">
               <section className="catalog-panel" aria-label="Product catalog">
                 <div className="catalog-heading"><div><h2>Menu</h2><p>Select an item to add it to the order.</p></div><span className="catalog-count">{visibleProducts.length} items</span></div>
-                <label className="product-search"><span aria-hidden="true">⌕</span><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu items" aria-label="Search menu items" /><kbd>⌘ K</kbd></label>
+                <label className="product-search"><span aria-hidden="true">⌕</span><input ref={searchInputRef} type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu items" aria-label="Search menu items" /><kbd>⌘ K</kbd></label>
                 <div className="category-tabs" role="group" aria-label="Filter by category">{categoryOptions.map((item) => <button key={item} type="button" className={category === item ? 'is-selected' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item}</button>)}</div>
                 <div className="product-grid">{visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}><span className={`product-art ${product.category.toLowerCase().includes('rice') ? 'product-art-rice' : product.category.toLowerCase().includes('coffee') ? 'product-art-coffee' : product.category.toLowerCase().includes('pasta') ? 'product-art-pasta' : product.category.toLowerCase().includes('pastr') ? 'product-art-pastry' : product.category.toLowerCase().includes('frappe') ? 'product-art-frappe' : 'product-art-default'}`} aria-hidden="true"><span>{product.initials}</span></span><span className="product-card-copy"><span className="product-name">{product.name}</span><span className="product-category">{product.category}</span><strong>{formatPhp(product.price)}</strong></span><span className="add-product" aria-hidden="true">+</span></button>)}{visibleProducts.length === 0 && <div className="catalog-empty">No menu items match your search.</div>}</div>
                 {connectionStatus === 'demo' && <p className="sample-data-note">Sample menu only · Cash checkout is disabled outside the trusted API.</p>}{connectionStatus === 'loading' && <p className="sample-data-note">Loading menu from your authorized branch…</p>}{connectionStatus === 'error' && <p className="sample-data-note">Live menu unavailable. Checkout remains disabled.</p>}
