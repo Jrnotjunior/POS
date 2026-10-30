@@ -125,7 +125,7 @@ export function createPosApiClient(options: PosApiClientOptions) {
   };
 }
 
-const configuredBaseUrl = (import.meta.env.VITE_POS_API_BASE_URL?.trim() || `${import.meta.env.VITE_SUPABASE_URL?.trim() ?? ''}/functions/v1/pos-api`).replace(/\\/$/, '');
+const configuredBaseUrl = (import.meta.env.VITE_POS_API_BASE_URL?.trim() || `${import.meta.env.VITE_SUPABASE_URL?.trim() ?? ''}/functions/v1/pos-api`).replace(/\/$/, '');
 
 /** Null means demo mode is selected; it does not imply a live API exists. */
 export function createConfiguredPosApiClient(): ReturnType<typeof createPosApiClient> | null {
