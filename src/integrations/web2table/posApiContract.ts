@@ -238,6 +238,15 @@ export type PosCashSaleRequest = Readonly<{
   items: readonly Readonly<{ itemId: string; quantity: number }>[];
 }>;
 
+export type PosCashSaleLineSnapshot = Readonly<{
+  line_number: number;
+  item_name_snapshot: string;
+  unit_price_centavos: number;
+  quantity: number;
+  line_total_centavos: number;
+}>;
+
+/** The create-sale response includes persisted line snapshots for reliable immediate receipt printing. */
 export type PosCashSaleResult = Readonly<{
   id: string;
   sale_number: number;
@@ -248,17 +257,10 @@ export type PosCashSaleResult = Readonly<{
   cash_tendered_centavos: number;
   change_centavos: number;
   created_at: string;
+  items: readonly PosCashSaleLineSnapshot[];
 }>;
 
-export type PosCashSaleHistoryItem = PosCashSaleResult & Readonly<{
-  items: readonly Readonly<{
-    line_number: number;
-    item_name_snapshot: string;
-    unit_price_centavos: number;
-    quantity: number;
-    line_total_centavos: number;
-  }>[];
-}>;
+export type PosCashSaleHistoryItem = PosCashSaleResult;
 
 export type PosCashierShift = Readonly<{
   active: boolean;
