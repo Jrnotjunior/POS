@@ -98,4 +98,48 @@ describe('POS API client', () => {
     expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/branches/branch-1/sales?limit=50', expect.objectContaining({ method: 'GET', credentials: 'omit' }));
   });
 
+  it('loads the current cashier shift through the authenticated shift endpoint', async () => {
+    const shift = { active: true, id: 'shift-1', status: 'open', opening_cash_centavos: 20000, cash_sales_centavos: 12500, expected_cash_centavos: 32500, opened_at: '2026-10-30T09:00:00Z' };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: shift }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test/', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.getCashierShift('branch-1')).resolves.toEqual(shift);
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/shift?branchId=branch-1', expect.objectContaining({
+      method: 'GET',
+      credentials: 'omit',
+      headers: { Accept: 'application/json', Authorization: 'Bearer test-access-token' },
+    }));
+  });
+
+  it('opens a cashier shift using integer centavos', async () => {
+    const shift = { id: 'shift-1', status: 'open', opening_cash_centavos: 20000, expected_cash_centavos: 20000 };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: shift }, 201));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.openCashierShift('branch-1', 20000)).resolves.toMatchObject({ ...shift, active: true });
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/shift/open', expect.objectContaining({
+      method: 'POST',
+      credentials: 'omit',
+      body: JSON.stringify({ branchId: 'branch-1', openingCashCentavos: 20000 }),
+    }));
+  });
+
+  it('closes a cashier shift and returns the cash variance', async () => {
+    const closed = { id: 'shift-1', status: 'closed', opening_cash_centavos: 20000, expected_cash_centavos: 32500, counted_cash_centavos: 30000, cash_variance_centavos: -2500, opened_at: '2026-10-30T09:00:00Z', closed_at: '2026-10-30T17:00:00Z', close_note: 'Short by 25 pesos' };
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: closed }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.closeCashierShift('branch-1', 30000, 'Short by 25 pesos')).resolves.toEqual(closed);
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/shift/close', expect.objectContaining({
+      method: 'POST',
+      credentials: 'omit',
+      body: JSON.stringify({ branchId: 'branch-1', countedCashCentavos: 30000, closeNote: 'Short by 25 pesos' }),
+    }));
+  });
+
+  it('rejects invalid opening and counted cash amounts before making a request', async () => {
+    const fetcher = vi.fn();
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.openCashierShift('branch-1', -1)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(client.closeCashierShift('branch-1', 1.5)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
 });
