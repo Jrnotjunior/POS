@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidPosMenuItem, isValidPosOnlineOrder, type PosOnlineOrderSnapshot } from './posApiContract';
+import { isValidPosMenuItem, isValidPosOnlineOrder, isValidPosStaffOrder, type PosOnlineOrderSnapshot } from './posApiContract';
 
 const menuItem = {
   id: 'item-1',
@@ -27,6 +27,36 @@ const order: PosOnlineOrderSnapshot = {
   updatedAt: '2026-10-30T10:01:00.000Z',
 };
 
+const staffOrder = {
+  id: 'order-1',
+  order_number: 101,
+  tenant_id: 'tenant-1',
+  branch_id: 'branch-1',
+  branch_name: 'Main branch',
+  order_type: 'pickup' as const,
+  customer_name: 'Guest Customer',
+  customer_phone: '09123456789',
+  delivery_address: null,
+  delivery_notes: '',
+  subtotal_centavos: 37800,
+  delivery_fee_centavos: 0,
+  total_centavos: 37800,
+  order_status: 'pending_confirmation',
+  payment_status: 'unpaid',
+  payment_method: 'cash' as const,
+  created_at: '2026-10-30T10:00:00.000Z',
+  updated_at: '2026-10-30T10:01:00.000Z',
+  items: [{
+    id: 'line-1',
+    line_number: 1,
+    item_name: 'Burger',
+    unit_price_centavos: 18900,
+    quantity: 2,
+    line_total_centavos: 37800,
+    options: [],
+  }],
+};
+
 describe('POS API contract guards', () => {
   it('accepts a well-formed menu item', () => {
     expect(isValidPosMenuItem(menuItem)).toBe(true);
@@ -35,6 +65,16 @@ describe('POS API contract guards', () => {
   it('rejects negative or fractional menu prices', () => {
     expect(isValidPosMenuItem({ ...menuItem, unitPriceCentavos: -1 })).toBe(false);
     expect(isValidPosMenuItem({ ...menuItem, unitPriceCentavos: 10.5 })).toBe(false);
+  });
+
+  it('accepts a well-formed staff order queue record', () => {
+    expect(isValidPosStaffOrder(staffOrder)).toBe(true);
+  });
+
+  it('rejects malformed staff order records and invalid line quantities', () => {
+    expect(isValidPosStaffOrder({ ...staffOrder, branch_id: '' })).toBe(false);
+    expect(isValidPosStaffOrder({ ...staffOrder, items: [{ ...staffOrder.items[0], quantity: 0 }] })).toBe(false);
+    expect(isValidPosStaffOrder({ ...staffOrder, total_centavos: -1 })).toBe(false);
   });
 
   it('accepts a well-formed online order snapshot', () => {
