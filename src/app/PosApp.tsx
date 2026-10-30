@@ -45,6 +45,7 @@ export function PosApp() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [notice, setNotice] = useState('');
   const [view, setView] = useState<View>('register');
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
   const [submittingSale, setSubmittingSale] = useState(false);
@@ -451,7 +452,7 @@ export function PosApp() {
               setLastClosedShift(null);
               setConnectionStatus('loading');
             }
-          }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><button className="pos-account-button" type="button" aria-label={`Account: ${session?.displayName ?? 'Demo cashier'}`} title={session?.displayName ?? 'Demo cashier'}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20c.5-3.5 3-5.5 6.5-5.5s6 2 6.5 5.5" /></svg></button></div></header>
+          }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-account-menu"><button className="pos-account-button" type="button" aria-label="Open account menu" aria-expanded={accountMenuOpen} aria-haspopup="menu" onClick={() => setAccountMenuOpen(open => !open)}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20c.5-3.5 3-5.5 6.5-5.5s6 2 6.5 5.5" /></svg></button>{accountMenuOpen && <div className="pos-account-dropdown" role="menu"><div className="pos-account-name">{session?.displayName ?? 'Demo cashier'}</div><div className="pos-account-role">{session?.role?.replaceAll('_', ' ') ?? 'Cashier'}</div>{authenticated && <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); const signOutButton = document.querySelector<HTMLButtonElement>('.pos-sign-out'); signOutButton?.click(); }} >Log out</button>}</div>}</div></div></header>
         <div className="pos-content">
           {view === 'register' ? <>
             
