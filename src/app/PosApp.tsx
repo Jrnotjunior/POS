@@ -328,8 +328,8 @@ export function PosApp() {
       });
       pendingSaleKey.current = null;
       setLastSale(result);
-      const checkoutItems = cart.map((line, index) => ({ line_number: index + 1, item_name_snapshot: line.product.name, unit_price_centavos: line.product.price, quantity: line.quantity, line_total_centavos: line.product.price * line.quantity }));
-      setLastSaleItems(checkoutItems);
+      // Persisted sale-line snapshots are the receipt source of truth.
+      setLastSaleItems([]);
       setCart([]);
       setCashReceived('');
       setCheckoutOpen(false);
@@ -350,7 +350,10 @@ export function PosApp() {
           setLastSale(persistedSale);
         }
       } catch {
-        // Keep the locally captured receipt items; the sale itself was already confirmed.
+        // The sale is saved, but persisted line details are unavailable.
+        // Do not print unverified browser-cart data as an official receipt.
+        setLastSaleItems([]);
+        setNotice(`Sale ${saleLabel(result)} was saved, but receipt details could not be refreshed. Open Transactions and retrieve the persisted sale before printing.`);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The sale could not be saved. Please retry.');
