@@ -3,6 +3,9 @@ import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, t
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
 import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
 import type { PosSessionContext } from '../integrations/web2table/posApiContract';
+import { PosSignIn } from '../integrations/web2table/PosSignIn';
+import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
+import '../styles/pos-auth.css';
 
 type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; initials: string };
@@ -19,6 +22,8 @@ const demoProducts: Product[] = [
 ];
 export function PosApp() {
   const apiClient = useMemo(() => createConfiguredPosApiClient(), []);
+  const [authReady, setAuthReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
   const [products, setProducts] = useState<Product[]>(demoProducts);
   const [session, setSession] = useState<PosSessionContext | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'demo' | 'loading' | 'connected' | 'error'>(apiClient ? 'loading' : 'demo');
@@ -28,7 +33,25 @@ export function PosApp() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    if (!apiClient) return;
+    let active = true;
+    async function checkExistingSession() {
+      if (!apiClient || !supabaseAuth) { setAuthReady(true); return; }
+      try {
+        const { data } = await supabaseAuth.auth.getSession();
+        if (data.session) {
+          const { data: assurance } = await supabaseAuth.auth.mfa.getAuthenticatorAssuranceLevel();
+          if (active) setAuthenticated(assurance?.currentLevel === 'aal2');
+        }
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    }
+    void checkExistingSession();
+    return () => { active = false; };
+  }, [apiClient]);
+
+  useEffect(() => {
+    if (!apiClient || !authenticated) return;
     const client = apiClient;
     let active = true;
     async function loadAuthorizedMenu() {
@@ -54,7 +77,7 @@ export function PosApp() {
     }
     void loadAuthorizedMenu();
     return () => { active = false; };
-  }, [apiClient]);
+  }, [apiClient, authenticated]);
 
   const categoryOptions = useMemo<Category[]>(() => ['All items', ...new Set(products.map((product) => product.category))], [products]);
 
@@ -75,6 +98,9 @@ export function PosApp() {
   function changeQuantity(productId: string, delta: number) {
     setCart((current) => changeCartQuantity(current, productId, delta));
   }
+
+  if (apiClient && !authReady) return <main className="pos-auth-page"><p role="status">Checking secure session…</p></main>;
+  if (apiClient && !authenticated) return <PosSignIn onAuthenticated={() => { setAuthenticated(true); setConnectionStatus('loading'); setNotice(''); }} />;
 
   return (
     <div className="pos-shell">
@@ -99,7 +125,7 @@ export function PosApp() {
       <main className="pos-main" id="register">
         <header className="pos-topbar">
           <div className="pos-breadcrumb">Workspace <span>/</span> <strong>Register</strong></div>
-          <div className="pos-topbar-actions"><span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div>
+          <div className="pos-topbar-actions">{authenticated && <button className="pos-sign-out" type="button" onClick={async () => { await signOutPos(); setAuthenticated(false); setSession(null); setProducts([]); setCart([]); setConnectionStatus('loading'); }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div>
         </header>
 
         <div className="pos-content">
