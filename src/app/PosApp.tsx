@@ -328,8 +328,9 @@ export function PosApp() {
       });
       pendingSaleKey.current = null;
       setLastSale(result);
-      // Persisted sale-line snapshots are the receipt source of truth.
-      setLastSaleItems([]);
+      // The create-sale API returns persisted database line snapshots.
+      // Printing can work immediately without relying on history refresh.
+      setLastSaleItems(result.items);
       setCart([]);
       setCashReceived('');
       setCheckoutOpen(false);
@@ -350,10 +351,9 @@ export function PosApp() {
           setLastSale(persistedSale);
         }
       } catch {
-        // The sale is saved, but persisted line details are unavailable.
-        // Do not print unverified browser-cart data as an official receipt.
-        setLastSaleItems([]);
-        setNotice(`Sale ${saleLabel(result)} was saved, but receipt details could not be refreshed. Open Transactions and retrieve the persisted sale before printing.`);
+        // The saved sale response already contains persisted line snapshots, so
+        // receipt printing remains available even when history refresh fails.
+        setNotice(`Sale ${saleLabel(result)} was saved. Transaction history could not be refreshed; the receipt uses the saved sale record.`);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The sale could not be saved. Please retry.');
