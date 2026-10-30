@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { addToCart, calculateCartSubtotal, changeCartQuantity, countCartItems, type CartLine } from '../domain/cart';
 import { formatPhp, moneyFromCentavos, multiplyMoney, type Money } from '../domain/money';
+import { createConfiguredPosApiClient } from '../integrations/web2table/posApiClient';
+import type { PosSessionContext } from '../integrations/web2table/posApiContract';
 
-type Category = 'All items' | 'Meals' | 'Drinks' | 'Sides';
-type Product = { id: string; name: string; category: Exclude<Category, 'All items'>; price: Money; initials: string };
+type Category = string;
+type Product = { id: string; name: string; category: string; price: Money; initials: string };
 
-const products: Product[] = [
+const demoProducts: Product[] = [
   { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), initials: 'CB' },
   { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), initials: 'CC' },
   { id: 'meal-003', name: 'Beef Rice Bowl', category: 'Meals', price: moneyFromCentavos(16900), initials: 'BR' },
@@ -15,19 +17,51 @@ const products: Product[] = [
   { id: 'side-001', name: 'French Fries', category: 'Sides', price: moneyFromCentavos(6900), initials: 'FF' },
   { id: 'side-002', name: 'Extra Rice', category: 'Sides', price: moneyFromCentavos(2500), initials: 'ER' },
 ];
-const categories: Category[] = ['All items', 'Meals', 'Drinks', 'Sides'];
-
 export function PosApp() {
+  const apiClient = useMemo(() => createConfiguredPosApiClient(), []);
+  const [products, setProducts] = useState<Product[]>(demoProducts);
+  const [session, setSession] = useState<PosSessionContext | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'demo' | 'loading' | 'connected' | 'error'>(apiClient ? 'loading' : 'demo');
   const [category, setCategory] = useState<Category>('All items');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [notice, setNotice] = useState('');
 
+  useEffect(() => {
+    if (!apiClient) return;
+    let active = true;
+    async function loadAuthorizedMenu() {
+      try {
+        const authorizedSession = await apiClient.getSession();
+        const menu = await apiClient.getBranchMenu(authorizedSession.branchId);
+        if (!active) return;
+        setSession(authorizedSession);
+        setProducts(menu.filter((item) => item.available).map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: item.categoryName,
+          price: moneyFromCentavos(item.unitPriceCentavos),
+          initials: item.name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase(),
+        })));
+        setConnectionStatus('connected');
+      } catch (error) {
+        if (!active) return;
+        setProducts([]);
+        setConnectionStatus('error');
+        setNotice(error instanceof Error ? error.message : 'Unable to connect to the POS service.');
+      }
+    }
+    void loadAuthorizedMenu();
+    return () => { active = false; };
+  }, [apiClient]);
+
+  const categoryOptions = useMemo<Category[]>(() => ['All items', ...new Set(products.map((product) => product.category))], [products]);
+
   const visibleProducts = useMemo(() => products.filter((product) => {
     const matchesCategory = category === 'All items' || product.category === category;
     const matchesSearch = product.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
     return matchesCategory && matchesSearch;
-  }), [category, search]);
+  }), [category, search, products]);
 
   const itemCount = countCartItems(cart);
   const subtotal = calculateCartSubtotal(cart);
@@ -68,13 +102,13 @@ export function PosApp() {
       <main className="pos-main" id="register">
         <header className="pos-topbar">
           <div className="pos-breadcrumb">Workspace <span>/</span> <strong>Register</strong></div>
-          <div className="pos-topbar-actions"><span className="demo-badge">DEMO DATA</span><div className="pos-avatar" aria-label="Demo cashier">DC</div></div>
+          <div className="pos-topbar-actions"><span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-avatar" aria-label={session?.displayName ?? 'Demo cashier'}>{session ? session.displayName.split(/\\s+/).map((part) => part[0] ?? '').slice(0, 2).join('').toUpperCase() : 'DC'}</div></div>
         </header>
 
         <div className="pos-content">
           <section className="pos-page-heading">
             <div><p className="pos-eyebrow">POINT OF SALE</p><h1>Register</h1><p className="pos-subtitle">Build an order and review it before checkout.</p></div>
-            <div className="register-status"><span className="status-dot" /> Register not connected</div>
+            <div className={`register-status register-status-${connectionStatus}`}><span className="status-dot" /> {connectionStatus === 'loading' ? 'Connecting to register…' : connectionStatus === 'connected' ? `Connected · ${session?.branchName ?? 'Authorized branch'}` : connectionStatus === 'error' ? 'Register connection failed' : 'Register not connected'}</div>
           </section>
 
           <div className="pos-workspace">
@@ -82,7 +116,7 @@ export function PosApp() {
               <div className="catalog-heading"><div><h2>Menu</h2><p>Select an item to add it to the order.</p></div><span className="catalog-count">{visibleProducts.length} items</span></div>
               <label className="product-search"><span aria-hidden="true">⌕</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items" aria-label="Search menu items" /><kbd>⌘ K</kbd></label>
               <div className="category-tabs" role="group" aria-label="Filter by category">
-                {categories.map((item) => <button key={item} type="button" className={category === item ? 'is-selected' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item}</button>)}
+                {categoryOptions.map((item) => <button key={item} type="button" className={category === item ? 'is-selected' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item}</button>)}
               </div>
               <div className="product-grid">
                 {visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}>
@@ -92,20 +126,20 @@ export function PosApp() {
                 </button>)}
                 {visibleProducts.length === 0 && <div className="catalog-empty">No menu items match your search.</div>}
               </div>
-              <p className="sample-data-note">Sample menu only · Not connected to your restaurant catalog</p>
+              {connectionStatus === 'demo' && <p className="sample-data-note">Sample menu only · Not connected to your restaurant catalog</p>}{connectionStatus === 'loading' && <p className="sample-data-note">Loading menu from your authorized branch…</p>}{connectionStatus === 'error' && <p className="sample-data-note">Live menu unavailable. Demo products are not shown when API mode is configured.</p>}
             </section>
 
             <aside className="order-panel" aria-label="Current order">
               <div className="order-panel-heading"><div><p className="pos-eyebrow">CURRENT SALE</p><h2>New order</h2></div><button className="text-button" type="button" onClick={() => { setCart([]); setNotice(''); }} disabled={cart.length === 0}>Clear</button></div>
-              <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>Walk-in customer</strong><span>In-store order · Draft</span></div><span className="draft-pill">DRAFT</span></div>
+              <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>{session?.displayName ?? 'Walk-in customer'}</strong><span>{session ? `${session.branchName} · Draft` : 'In-store order · Draft'}</span></div><span className="draft-pill">DRAFT</span></div>
               <div className="order-lines-heading"><span>ITEM</span><span>QTY</span><span className="align-right">TOTAL</span></div>
               <div className="order-lines">
                 {cart.length === 0 ? <div className="empty-order"><span className="empty-order-icon" aria-hidden="true">▤</span><strong>Your order is empty</strong><p>Select items from the menu to get started.</p></div> : cart.map((line) => <div className="order-line" key={line.product.id}><div className="order-line-product"><strong>{line.product.name}</strong><span>{formatPhp(line.product.price)} each</span></div><div className="quantity-control"><button type="button" onClick={() => changeQuantity(line.product.id, -1)} aria-label={`Remove one ${line.product.name}`}>−</button><span>{line.quantity}</span><button type="button" onClick={() => changeQuantity(line.product.id, 1)} aria-label={`Add one ${line.product.name}`}>+</button></div><strong className="line-total">{formatPhp(multiplyMoney(line.product.price, line.quantity))}</strong></div>)}
               </div>
               <div className="order-summary"><div><span>Items</span><span>{itemCount}</span></div><div><span>Subtotal</span><strong>{formatPhp(subtotal)}</strong></div><div><span>Tax and discounts</span><span className="not-configured">Not configured</span></div><div className="order-total"><span>Total</span><strong>{formatPhp(subtotal)}</strong></div><p className="tax-disclaimer">Tax rules and discounts are not configured in this prototype. Totals are not valid for payment or invoicing.</p></div>
               {notice && <div className="pos-notice" role="status">{notice}</div>}
-              <button className="checkout-button" type="button" onClick={startCheckout} disabled={cart.length === 0}>Continue to payment <span aria-hidden="true">→</span></button>
-              <p className="checkout-caption">No payment will be processed in this demo.</p>
+              <button className="checkout-button" type="button" onClick={startCheckout} disabled>Checkout unavailable <span aria-hidden="true">→</span></button>
+              <p className="checkout-caption">{connectionStatus === 'connected' ? 'Payments remain disabled until the trusted transaction API is implemented.' : 'No payment will be processed in this demo.'}</p>
             </aside>
           </div>
         </div>
