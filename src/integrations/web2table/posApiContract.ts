@@ -49,6 +49,69 @@ export type PosOnlineOrderSnapshot = Readonly<{
   updatedAt: string;
 }>;
 
+export type PosStaffOrder = Readonly<{
+  id: string;
+  order_number: number;
+  tenant_id: string;
+  branch_id: string;
+  branch_name: string;
+  order_type: 'delivery' | 'take_out' | 'pickup' | 'dine_in';
+  customer_name: string;
+  customer_phone: string;
+  delivery_address: string | null;
+  delivery_notes: string;
+  subtotal_centavos: number;
+  delivery_fee_centavos: number | null;
+  total_centavos: number | null;
+  order_status: string;
+  payment_status: string;
+  payment_method?: 'cash' | 'online';
+  created_at: string;
+  updated_at: string;
+  items: readonly Readonly<{
+    id: string;
+    line_number: number;
+    item_name: string;
+    unit_price_centavos: number;
+    quantity: number;
+    line_total_centavos: number;
+    options?: readonly Readonly<{ id?: string; name?: string; group_name?: string }>[];
+  }>[];
+}>;
+
+export type PosStaffOrderAction = 'confirm' | 'reject' | 'cancel';
+
+export function isValidPosStaffOrder(value: unknown): value is PosStaffOrder {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const order = value as Record<string, unknown>;
+  return typeof order.id === 'string' && order.id.trim().length > 0
+    && Number.isSafeInteger(order.order_number)
+    && typeof order.tenant_id === 'string' && order.tenant_id.trim().length > 0
+    && typeof order.branch_id === 'string' && order.branch_id.trim().length > 0
+    && typeof order.branch_name === 'string'
+    && ['delivery', 'take_out', 'pickup', 'dine_in'].includes(String(order.order_type))
+    && typeof order.customer_name === 'string'
+    && typeof order.customer_phone === 'string'
+    && (order.delivery_address === null || typeof order.delivery_address === 'string')
+    && typeof order.delivery_notes === 'string'
+    && Number.isSafeInteger(order.subtotal_centavos) && Number(order.subtotal_centavos) >= 0
+    && (order.delivery_fee_centavos === null || (Number.isSafeInteger(order.delivery_fee_centavos) && Number(order.delivery_fee_centavos) >= 0))
+    && (order.total_centavos === null || (Number.isSafeInteger(order.total_centavos) && Number(order.total_centavos) >= 0))
+    && typeof order.order_status === 'string'
+    && typeof order.payment_status === 'string'
+    && typeof order.created_at === 'string' && Number.isFinite(Date.parse(order.created_at))
+    && typeof order.updated_at === 'string' && Number.isFinite(Date.parse(order.updated_at))
+    && Array.isArray(order.items) && order.items.every((item) => {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) return false;
+      const line = item as Record<string, unknown>;
+      return typeof line.id === 'string' && Number.isSafeInteger(line.line_number)
+        && typeof line.item_name === 'string'
+        && Number.isSafeInteger(line.unit_price_centavos) && Number(line.unit_price_centavos) >= 0
+        && Number.isSafeInteger(line.quantity) && Number(line.quantity) > 0
+        && Number.isSafeInteger(line.line_total_centavos) && Number(line.line_total_centavos) >= 0;
+    });
+}
+
 export type PosApiErrorCode =
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'
