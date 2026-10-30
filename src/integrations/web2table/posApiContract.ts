@@ -174,6 +174,7 @@ export type PosFiscalProfileDraft = Readonly<{
   tinBranchCode: string;
   registeredAddress: string;
   taxRegime: PosFiscalTaxRegime;
+  invoiceDocumentType: 'invoice';
   invoiceSeriesPrefix: string;
   softwareName: string;
   softwareVersion: string;
