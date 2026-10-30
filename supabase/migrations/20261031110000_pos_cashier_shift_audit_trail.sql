@@ -99,6 +99,12 @@ BEFORE UPDATE OR DELETE ON public.pos_cashier_shift_audit_events
 FOR EACH ROW
 EXECUTE FUNCTION public.prevent_pos_cashier_shift_audit_mutation();
 
+DROP TRIGGER IF EXISTS pos_cashier_shift_audit_no_truncate ON public.pos_cashier_shift_audit_events;
+CREATE TRIGGER pos_cashier_shift_audit_no_truncate
+BEFORE TRUNCATE ON public.pos_cashier_shift_audit_events
+FOR EACH STATEMENT
+EXECUTE FUNCTION public.prevent_pos_cashier_shift_audit_mutation();
+
 COMMENT ON TABLE public.pos_cashier_shift_audit_events IS
   'Append-only lifecycle audit for cashier shifts. Contains cash reconciliation figures only; never stores close notes.';
 
