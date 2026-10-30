@@ -6,6 +6,7 @@ import type { PosCashSaleHistoryItem, PosCashSaleResult, PosSessionContext } fro
 import { PosSignIn } from '../integrations/web2table/PosSignIn';
 import { signOutPos, supabaseAuth } from '../integrations/web2table/supabaseAuth';
 import '../styles/pos-auth.css';
+import '../styles/pos-transactions.css';
 
 type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; initials: string };
