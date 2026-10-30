@@ -26,7 +26,7 @@ All routes below are proposals until implemented and reviewed in the trusted bac
 - `GET /api/pos/v1/transactions/{transactionId}` — retrieve an authorized transaction.
 - `POST /api/pos/v1/orders/{orderId}/checkout` — link an eligible online order to a POS payment/transaction using an explicit state transition guard.
 
-These routes must not be treated as implemented until a server-side handler exists, is deployed, and has security tests.
+These routes must not be treated as implemented until a server-side handler exists, is deployed, and has security tests. The POS client now contains an API adapter for the session and branch-menu reads, but the adapter does not create the server endpoints. Until those endpoints are deployed and verified, the public GitHub Pages app remains in explicitly labelled demo mode.
 
 ## Required authorization
 
