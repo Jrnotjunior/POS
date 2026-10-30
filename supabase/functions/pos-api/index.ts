@@ -183,7 +183,7 @@ Deno.serve(async(req:Request)=>{
       return response(req,{data:result,requestId},200,requestId);
     }
     const {data:rows,error:menuError}=await admin.from("menu_items")
-      .select("id,category_id,name,description,price_centavos,menu_categories!inner(id,name,is_published),branch_menu_items!inner(is_available,price_override_centavos,tenant_id,branch_id)")
+      .select("id,category_id,name,description,price_centavos,image_path,menu_categories!inner(id,name,is_published),branch_menu_items!inner(is_available,price_override_centavos,tenant_id,branch_id)")
       .eq("tenant_id",context.tenantId).eq("status","published").eq("menu_categories.is_published",true)
       .eq("branch_menu_items.tenant_id",context.tenantId).eq("branch_menu_items.branch_id",context.branchId)
       .eq("branch_menu_items.is_available",true).order("name",{ascending:true}).limit(200);
@@ -193,7 +193,7 @@ Deno.serve(async(req:Request)=>{
       const branchRows=Array.isArray(item.branch_menu_items)?item.branch_menu_items:[];
       const branch=branchRows[0] as Rec|undefined;
       const price=typeof branch?.price_override_centavos==="number"?branch.price_override_centavos:item.price_centavos;
-      return {id:item.id,categoryId:item.category_id,categoryName:typeof cat?.name==="string"?cat.name:"",name:item.name,description:typeof item.description==="string"?item.description:"",unitPriceCentavos:price,available:true};
+      return {id:item.id,categoryId:item.category_id,categoryName:typeof cat?.name==="string"?cat.name:"",name:item.name,description:typeof item.description==="string"?item.description:"",imagePath:typeof item.image_path==="string"&&item.image_path.trim()?item.image_path.trim():null,unitPriceCentavos:price,available:true};
     }).filter((i:Rec)=>typeof i.id==="string"&&typeof i.categoryId==="string"&&typeof i.categoryName==="string"&&i.categoryName.length>0&&typeof i.name==="string"&&Number.isSafeInteger(i.unitPriceCentavos)&&Number(i.unitPriceCentavos)>=0);
     return response(req,{data,requestId},200,requestId);
   }catch(e){
