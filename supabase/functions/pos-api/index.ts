@@ -59,7 +59,45 @@ Deno.serve(async(req:Request)=>{
     const isMenu=req.method==="GET"&&Boolean(match)&&(path.includes("/api/pos/v1/")||path.includes("/pos-api/"));
     const isSalesHistory=req.method==="GET"&&Boolean(salesMatch)&&(path.includes("/api/pos/v1/")||path.includes("/pos-api/"));
     const isSale=req.method==="POST"&&path.endsWith("/api/pos/v1/sales");
-    if(!isSession&&!isMenu&&!isSalesHistory&&!isSale)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    const isShiftGet=req.method==="GET"&&path.endsWith("/api/pos/v1/shift");
+    const isShiftOpen=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/open");
+    const isShiftClose=req.method==="POST"&&path.endsWith("/api/pos/v1/shift/close");
+    if(!isSession&&!isMenu&&!isSalesHistory&&!isSale&&!isShiftGet&&!isShiftOpen&&!isShiftClose)return response(req,err("NOT_FOUND","The requested POS endpoint was not found.",requestId),404,requestId);
+    if(isShiftGet||isShiftOpen||isShiftClose){
+      let body:Rec={};
+      if(isShiftOpen||isShiftClose){
+        const length=Number(req.headers.get("Content-Length")??"0");
+        if(length>10000)return response(req,err("VALIDATION_ERROR","The shift request is too large.",requestId),413,requestId);
+        try{const parsed:unknown=await req.json();if(typeof parsed!=="object"||parsed===null||Array.isArray(parsed))throw new Error("invalid");body=parsed as Rec;}
+        catch{return response(req,err("VALIDATION_ERROR","Provide a valid JSON shift request.",requestId),400,requestId);}
+      }
+      const branchId=typeof (isShiftGet?new URL(req.url).searchParams.get("branchId"):body.branchId)==="string"
+        ? String(isShiftGet?new URL(req.url).searchParams.get("branchId"):body.branchId) : "";
+      if(!uuid(branchId))return response(req,err("VALIDATION_ERROR","A valid branch identifier is required.",requestId),400,requestId);
+      let rpcName:string, rpcArgs:Rec;
+      if(isShiftGet){rpcName="get_pos_cashier_shift";rpcArgs={p_actor_user_id:auth.user.id,p_branch_id:branchId};}
+      else if(isShiftOpen){
+        const opening=body.openingCashCentavos;
+        if(!Number.isSafeInteger(opening)||Number(opening)<0||Number(opening)>2000000000)
+          return response(req,err("VALIDATION_ERROR","Opening cash must be a valid amount in centavos.",requestId),400,requestId);
+        rpcName="open_pos_cashier_shift";rpcArgs={p_actor_user_id:auth.user.id,p_branch_id:branchId,p_opening_cash_centavos:Number(opening)};
+      }else{
+        const counted=body.countedCashCentavos;
+        if(!Number.isSafeInteger(counted)||Number(counted)<0||Number(counted)>2000000000)
+          return response(req,err("VALIDATION_ERROR","Counted cash must be a valid amount in centavos.",requestId),400,requestId);
+        rpcName="close_pos_cashier_shift";rpcArgs={p_actor_user_id:auth.user.id,p_branch_id:branchId,p_counted_cash_centavos:Number(counted),p_close_note:typeof body.closeNote==="string"?body.closeNote.slice(0,500):null};
+      }
+      const {data:shift,error:shiftError}=await admin.rpc(rpcName,rpcArgs);
+      if(shiftError){
+        const code=(shiftError as unknown as Rec).code;
+        if(code==="42501")return response(req,err("FORBIDDEN",shiftError.message,requestId),403,requestId);
+        if(code==="22023")return response(req,err("VALIDATION_ERROR",shiftError.message,requestId),400,requestId);
+        if(code==="23505")return response(req,err("CONFLICT",shiftError.message,requestId),409,requestId);
+        if(code==="P0002")return response(req,err("CONFLICT",shiftError.message,requestId),409,requestId);
+        throw shiftError;
+      }
+      return response(req,{data:shift,requestId},isShiftOpen?201:200,requestId);
+    }
     if(isSale){
       const length=Number(req.headers.get("Content-Length")??"0");
       if(length>50000)return response(req,err("VALIDATION_ERROR","The sale request is too large.",requestId),413,requestId);
