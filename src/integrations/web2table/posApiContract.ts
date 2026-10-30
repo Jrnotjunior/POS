@@ -262,6 +262,8 @@ export type PosCashSaleResult = Readonly<{
 
 export type PosCashSaleHistoryItem = PosCashSaleResult;
 
+export type PosLoyaltyCustomer = Readonly<{ customerUserId: string; displayName: string; phoneLastFour: string }>;
+
 export type PosLoyaltyBalance = Readonly<{
   customerUserId: string;
   account: Readonly<{ points_balance: number; lifetime_points_earned: number; lifetime_points_redeemed: number; eligible_spend_centavos: number; updated_at: string | null }>;
