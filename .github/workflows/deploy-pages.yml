@@ -31,6 +31,10 @@ jobs:
       - name: Run unit tests
         run: npm test
       - name: Build site
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://wvibrchebfwirbgkcnbr.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_MILZBeZJeOw-bOeMo3Nukg_BKGWt_Qr' }}
+          VITE_POS_API_BASE_URL: ${{ vars.VITE_POS_API_BASE_URL || 'https://wvibrchebfwirbgkcnbr.supabase.co/functions/v1/pos-api' }}
         run: npm run build
       - name: Configure Pages
         uses: actions/configure-pages@v5
