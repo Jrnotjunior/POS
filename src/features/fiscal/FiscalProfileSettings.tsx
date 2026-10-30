@@ -12,7 +12,7 @@ type Props = Readonly<{
 function blankDraft(branchId: string): PosFiscalProfileDraft {
   return {
     branchId, taxpayerRegisteredName: '', tradeName: '', taxpayerTin: '', tinBranchCode: '000',
-    registeredAddress: '', taxRegime: 'other_requires_review', invoiceSeriesPrefix: '',
+    registeredAddress: '', taxRegime: 'other_requires_review', invoiceDocumentType: 'invoice', invoiceSeriesPrefix: '',
     softwareName: 'Web2table POS', softwareVersion: '0.1.0', machineOrTerminalIdentifier: '',
   };
 }
@@ -26,6 +26,7 @@ function fromProfile(profile: PosFiscalProfile): PosFiscalProfileDraft {
     tinBranchCode: profile.tin_branch_code,
     registeredAddress: profile.registered_address,
     taxRegime: profile.tax_regime,
+    invoiceDocumentType: profile.invoice_document_type,
     invoiceSeriesPrefix: profile.invoice_series_prefix,
     softwareName: profile.software_name,
     softwareVersion: profile.software_version,
