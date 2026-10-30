@@ -505,16 +505,13 @@ export function PosApp() {
                   <small id="pos-customer-help" className="pos-customer-help">Type a name to find an existing customer account.</small>
                   {loyaltyCustomers.length > 0 && !loyaltyCustomer && <div className="pos-loyalty-results" role="listbox" aria-label="Matching customer accounts">{loyaltyCustomers.map((customer) => <button key={customer.customerUserId} type="button" role="option" onClick={() => void selectLoyaltyCustomer(customer)}><span><strong>{customer.displayName}</strong><small>Phone ending {customer.phoneLastFour || '----'}</small></span><span>Select</span></button>)}</div>}
                   {loyaltyLoading && !loyaltyCustomer && <p className="pos-loyalty-meta" role="status">Finding customer accounts…</p>}
+                  {loyaltyCustomer && <div className="pos-customer-selected"><span>Selected: <strong>{loyaltyCustomer.displayName}</strong></span><button type="button" onClick={() => { setLoyaltyCustomer(null); setLoyaltyBalance(null); setLoyaltySearch(customerName); setLoyaltyError(''); void searchLoyaltyCustomers(customerName); }}>Change</button></div>}
+                  {loyaltyCustomer && loyaltyLoading && <p className="pos-loyalty-meta">Loading points balance…</p>}
+                  {loyaltyBalance && <div className="pos-loyalty-balance"><span>Available points</span><strong>{loyaltyBalance.account.points_balance.toLocaleString()}</strong><small>{loyaltyBalance.settings.enabled ? (loyaltyBalance.settings.redemption_enabled ? 'Rewards enabled' : 'Earning enabled · redemption off') : 'Loyalty is disabled for this restaurant'}</small></div>}
+
                   {loyaltyError && !loyaltyCustomer && <p className="pos-loyalty-error" role="status">{loyaltyError}</p>}
                 </section>
-                {loyaltyCustomer && <section className="pos-loyalty-panel" aria-label="Selected customer loyalty">
-                  <div className="pos-loyalty-selected">
-                    <div><strong>{loyaltyCustomer.displayName}</strong><small>Phone ending {loyaltyCustomer.phoneLastFour || '----'}</small></div>
-                    <button type="button" onClick={() => { setLoyaltyCustomer(null); setLoyaltyBalance(null); setLoyaltySearch(customerName); setLoyaltyError(''); void searchLoyaltyCustomers(customerName); }} aria-label="Change selected customer">Change</button>
-                  </div>
-                  {loyaltyLoading && <p className="pos-loyalty-meta">Loading points balance…</p>}
-                  {loyaltyBalance && <div className="pos-loyalty-balance"><span>Available points</span><strong>{loyaltyBalance.account.points_balance.toLocaleString()}</strong><small>{loyaltyBalance.settings.enabled ? (loyaltyBalance.settings.redemption_enabled ? 'Rewards enabled' : 'Earning enabled · redemption off') : 'Loyalty is disabled for this restaurant'}</small></div>}
-                </section>}
+
                 <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>{customerName.trim() || loyaltyCustomer?.displayName || 'Walk-in customer'}</strong><span>{session ? `${session.branchName} · Draft` : 'In-store order · Draft'}</span></div><span className="draft-pill">DRAFT</span></div>
                 <div className="order-lines-heading"><span>ITEM</span><span>QTY</span><span className="align-right">TOTAL</span></div>
                 <div className="order-lines">{cart.length === 0 ? <div className="empty-order"><span className="empty-order-icon" aria-hidden="true">▤</span><strong>Your order is empty</strong><p>Select items from the menu to get started.</p></div> : cart.map((line) => <div className="order-line" key={line.product.id}><div className="order-line-product"><strong>{line.product.name}</strong><span>{formatPhp(line.product.price)} each</span></div><div className="quantity-control"><button type="button" onClick={() => changeQuantity(line.product.id, -1)} aria-label={`Remove one ${line.product.name}`}>−</button><span>{line.quantity}</span><button type="button" onClick={() => changeQuantity(line.product.id, 1)} aria-label={`Add one ${line.product.name}`}>+</button></div><strong className="line-total">{formatPhp(multiplyMoney(line.product.price, line.quantity))}</strong></div>)}</div>
