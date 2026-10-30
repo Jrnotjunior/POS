@@ -194,6 +194,13 @@ Deno.serve(async(req:Request)=>{
       return response(req,{data:{orders,filter},requestId},200,requestId);
     }
     if(isOrderTransition){
+      // Bind the requested order to the explicitly authorized branch before invoking
+      // the SaaS transition RPC; a cashier may belong to multiple branches.
+      const {data:targetOrder,error:targetOrderError}=await admin.from("customer_orders")
+        .select("id").eq("tenant_id",context.tenantId).eq("branch_id",context.branchId)
+        .eq("id",String(orderActionBody.orderId)).maybeSingle();
+      if(targetOrderError)throw targetOrderError;
+      if(!targetOrder)return response(req,err("NOT_FOUND","The order is unavailable in this branch.",requestId),404,requestId);
       const {data:transition,error:transitionError}=await admin.rpc("transition_staff_order",{
         p_tenant_id:context.tenantId,p_order_id:String(orderActionBody.orderId),p_action:String(orderActionBody.action)
       });
