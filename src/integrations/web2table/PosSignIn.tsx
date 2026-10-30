@@ -42,7 +42,7 @@ export function PosSignIn({ onAuthenticated }: Props) {
   async function submitMfa(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!mfa || busy) return;
-    if (!/^\\d{6}$/.test(otp.trim())) {
+    if (!/^\d{6}$/.test(otp.trim())) {
       setError('Enter the 6-digit code from your authenticator app.');
       return;
     }
@@ -82,7 +82,7 @@ export function PosSignIn({ onAuthenticated }: Props) {
         {mfa ? (
           <form className="pos-auth-form" onSubmit={submitMfa}>
             <label htmlFor="pos-mfa-code">Authenticator code
-              <input id="pos-mfa-code" name="otp" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\\D/g, '').slice(0, 6))} required autoFocus />
+              <input id="pos-mfa-code" name="otp" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} required autoFocus />
             </label>
             {error && <p className="pos-auth-error" role="alert">{error}</p>}
             <button type="submit" disabled={busy || otp.length !== 6}>{busy ? 'Verifying…' : 'Verify and continue'}</button>
@@ -100,7 +100,7 @@ export function PosSignIn({ onAuthenticated }: Props) {
             <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'}</button>
           </form>
         )}
-        <p className="pos-auth-security" role="note">POS requires a verified authenticator when MFA is enabled. Sign-in is handled by Supabase; branch access and permissions are checked server-side. No service-role key is used in this app.</p>
+        <p className="pos-auth-security" role="note">POS requires a verified authenticator. Sign-in is handled by Supabase; branch access and permissions are checked server-side. No service-role key is used in this app.</p>
       </section>
     </main>
   );
