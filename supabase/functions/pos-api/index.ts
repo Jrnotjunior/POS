@@ -180,10 +180,18 @@ Deno.serve(async(req:Request)=>{
       if(!uuid(saleId))throw new Error("cash_sale_rpc_missing_sale_id");
       const {data:savedSale,error:savedSaleError}=await admin.from("pos_sales")
         .select("id,sale_number,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,created_at")
-        .eq("id",saleId).eq("branch_id",branchId).maybeSingle();
+        .eq("id",saleId).eq("tenant_id",context.tenantId).eq("branch_id",branchId).maybeSingle();
       if(savedSaleError)throw savedSaleError;
       if(!savedSale)throw new Error("cash_sale_persisted_record_not_found");
-      return response(req,{data:savedSale,requestId},201,requestId);
+      // Return only database-persisted line snapshots. Receipt printing must not depend
+      // on a subsequent history refresh or reconstruct amounts from the browser cart.
+      const {data:savedLines,error:savedLinesError}=await admin.from("pos_sale_items")
+        .select("line_number,item_name_snapshot,unit_price_centavos,quantity,line_total_centavos")
+        .eq("tenant_id",context.tenantId).eq("branch_id",branchId).eq("sale_id",saleId)
+        .order("line_number",{ascending:true});
+      if(savedLinesError)throw savedLinesError;
+      if(!savedLines||savedLines.length===0)throw new Error("cash_sale_persisted_lines_not_found");
+      return response(req,{data:{...savedSale,items:savedLines},requestId},201,requestId);
     }
     let orderActionBody:Rec={};
     if(isOrderTransition){
