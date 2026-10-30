@@ -251,16 +251,16 @@ export function PosApp() {
   }
 
   useEffect(() => {
-    if (view !== 'orders' || !authenticated || !session) {
+    if (!authenticated || !session) {
       setOrdersRealtimeStatus('disconnected');
       return;
     }
     let active = true;
     setOrdersRealtimeStatus('connecting');
-    void loadOrders();
+    if (view === 'orders') void loadOrders();
 
-    // Realtime carries a refresh signal only; order data always comes from the
-    // authorized branch-scoped POS API.
+    // Keep one private tenant subscription for all POS views. Broadcasts are
+    // refresh signals only; business data always comes from authorized APIs.
     const unsubscribe = supabaseAuth
       ? subscribeToTenantOrderChanges(
           supabaseAuth,
@@ -276,7 +276,10 @@ export function PosApp() {
       : () => setOrdersRealtimeStatus('error');
 
     const refreshWhenVisible = () => {
-      if (active && document.visibilityState === 'visible' && navigator.onLine) void loadOrders(true);
+      if (!active || document.visibilityState !== 'visible' || !navigator.onLine) return;
+      if (view === 'orders') void loadOrders(true);
+      if (view === 'transactions') void loadSales();
+      if (view === 'shifts' || view === 'register') void refreshShift();
     };
     window.addEventListener('focus', refreshWhenVisible);
     window.addEventListener('online', refreshWhenVisible);
@@ -288,6 +291,8 @@ export function PosApp() {
       window.removeEventListener('online', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       ordersRequestId.current += 1;
+      salesRequestId.current += 1;
+      shiftRequestId.current += 1;
     };
   }, [view, authenticated, session?.branchId, session?.tenantId, ordersFilter]);
   const categoryOptions = useMemo<Category[]>(() => ['All items', ...new Set(products.map((product) => product.category))], [products]);
