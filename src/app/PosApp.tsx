@@ -49,6 +49,7 @@ export function PosApp() {
   const [lastSaleItems, setLastSaleItems] = useState<PosCashSaleHistoryItem['items']>([]);
   const pendingSaleKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [sales, setSales] = useState<PosCashSaleHistoryItem[]>([]);
+  const salesRequestId = useRef(0);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState('');
   const [salesSearch, setSalesSearch] = useState('');
@@ -160,18 +161,21 @@ export function PosApp() {
   async function loadSales() {
     if (!apiClient || !session) return;
     const requestedBranchId = session.branchId;
+    const requestId = ++salesRequestId.current;
     setSalesLoading(true);
     setSalesError('');
-    // Clear previously displayed records before fetching this branch's data.
-    // This prevents a previous branch's transactions lingering during a branch/session change.
+    // Clear prior rows before loading this branch's data.
     setSales([]);
     try {
       const branchSales = await apiClient.getBranchSales(requestedBranchId);
+      // Ignore responses from an older request after a branch/session refresh.
+      if (requestId !== salesRequestId.current) return;
       setSales(branchSales);
     } catch (error) {
+      if (requestId !== salesRequestId.current) return;
       setSalesError(error instanceof Error ? error.message : 'Could not load transaction history.');
     } finally {
-      setSalesLoading(false);
+      if (requestId === salesRequestId.current) setSalesLoading(false);
     }
   }
 
@@ -287,6 +291,7 @@ export function PosApp() {
               setLastSale(null);
               setLastSaleItems([]);
               pendingSaleKey.current = null;
+              salesRequestId.current += 1;
               setSales([]);
               setSalesLoading(false);
               setSalesError('');
