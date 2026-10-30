@@ -47,6 +47,7 @@ export function PosApp() {
   const [submittingSale, setSubmittingSale] = useState(false);
   const [lastSale, setLastSale] = useState<PosCashSaleResult | null>(null);
   const [lastSaleItems, setLastSaleItems] = useState<PosCashSaleHistoryItem['items']>([]);
+  const pendingSaleKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [sales, setSales] = useState<PosCashSaleHistoryItem[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState('');
@@ -195,12 +196,17 @@ export function PosApp() {
     if (!apiClient || !session || !cashierShift?.active || cart.length === 0 || receivedCentavos < dueCentavos || submittingSale) return;
     setSubmittingSale(true); setNotice('');
     try {
+      const saleFingerprint = `${session.branchId}:${cart.map((line) => `${line.product.id}:${line.quantity}`).sort().join('|')}`;
+      if (pendingSaleKey.current?.fingerprint !== saleFingerprint) {
+        pendingSaleKey.current = { fingerprint: saleFingerprint, key: newIdempotencyKey() };
+      }
       const result = await apiClient.createCashSale({
         branchId: session.branchId,
-        idempotencyKey: newIdempotencyKey(),
+        idempotencyKey: pendingSaleKey.current.key,
         cashTenderedCentavos: receivedCentavos,
         items: cart.map((line) => ({ itemId: line.product.id, quantity: line.quantity })),
       });
+      pendingSaleKey.current = null;
       setLastSale(result);
       setLastSaleItems(cart.map((line, index) => ({ line_number: index + 1, item_name_snapshot: line.product.name, unit_price_centavos: line.product.price, quantity: line.quantity, line_total_centavos: line.product.price * line.quantity })));
       setCart([]);
