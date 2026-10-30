@@ -68,7 +68,7 @@ describe('POS API client', () => {
 
   it('maps unauthorized responses to a clear typed error', async () => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'FORBIDDEN', message: 'No branch access.' } }, 403));
-    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher });
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
     await expect(client.getSession()).rejects.toBeInstanceOf(PosApiClientError);
     await expect(client.getSession()).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
   });
