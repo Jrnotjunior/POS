@@ -161,6 +161,74 @@ export function isValidPosOnlineOrder(value: PosOnlineOrderSnapshot): boolean {
   );
 }
 
+
+export type PosFiscalTaxRegime = 'vat_registered' | 'non_vat' | 'other_requires_review';
+export type PosFiscalStatus = 'draft' | 'pending_review' | 'authorized' | 'suspended';
+
+export type PosFiscalProfileDraft = Readonly<{
+  branchId: string;
+  taxpayerRegisteredName: string;
+  tradeName?: string | null;
+  taxpayerTin: string;
+  tinBranchCode: string;
+  registeredAddress: string;
+  taxRegime: PosFiscalTaxRegime;
+  invoiceSeriesPrefix: string;
+  softwareName: string;
+  softwareVersion: string;
+  machineOrTerminalIdentifier?: string | null;
+}>;
+
+export type PosFiscalProfile = Readonly<{
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  taxpayer_registered_name: string;
+  trade_name: string | null;
+  taxpayer_tin: string;
+  tin_branch_code: string;
+  registered_address: string;
+  tax_regime: PosFiscalTaxRegime;
+  invoice_document_type: 'invoice';
+  invoice_series_prefix: string;
+  fiscal_status: PosFiscalStatus;
+  authorization_reference: string | null;
+  authorization_effective_at: string | null;
+  authorization_expires_at: string | null;
+  authorized_at: string | null;
+  software_name: string;
+  software_version: string;
+  machine_or_terminal_identifier: string | null;
+  created_at: string;
+  updated_at: string;
+}>;
+
+export function isValidPosFiscalProfile(value: unknown): value is PosFiscalProfile {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const profile = value as Record<string, unknown>;
+  return typeof profile.id === 'string' && profile.id.trim().length > 0
+    && typeof profile.tenant_id === 'string' && profile.tenant_id.trim().length > 0
+    && typeof profile.branch_id === 'string' && profile.branch_id.trim().length > 0
+    && typeof profile.taxpayer_registered_name === 'string' && profile.taxpayer_registered_name.trim().length >= 2
+    && (profile.trade_name === null || typeof profile.trade_name === 'string')
+    && typeof profile.taxpayer_tin === 'string' && /^[0-9]{9,12}$/.test(profile.taxpayer_tin)
+    && typeof profile.tin_branch_code === 'string' && /^[0-9]{3}$/.test(profile.tin_branch_code)
+    && typeof profile.registered_address === 'string' && profile.registered_address.trim().length >= 5
+    && ['vat_registered', 'non_vat', 'other_requires_review'].includes(String(profile.tax_regime))
+    && profile.invoice_document_type === 'invoice'
+    && typeof profile.invoice_series_prefix === 'string' && /^[A-Z0-9-]{1,20}$/.test(profile.invoice_series_prefix)
+    && ['draft', 'pending_review', 'authorized', 'suspended'].includes(String(profile.fiscal_status))
+    && (profile.authorization_reference === null || typeof profile.authorization_reference === 'string')
+    && (profile.authorization_effective_at === null || typeof profile.authorization_effective_at === 'string')
+    && (profile.authorization_expires_at === null || typeof profile.authorization_expires_at === 'string')
+    && (profile.authorized_at === null || typeof profile.authorized_at === 'string')
+    && typeof profile.software_name === 'string' && profile.software_name.trim().length >= 2
+    && typeof profile.software_version === 'string' && profile.software_version.trim().length > 0
+    && (profile.machine_or_terminal_identifier === null || typeof profile.machine_or_terminal_identifier === 'string')
+    && typeof profile.created_at === 'string' && Number.isFinite(Date.parse(profile.created_at))
+    && typeof profile.updated_at === 'string' && Number.isFinite(Date.parse(profile.updated_at));
+}
+
 export type PosCashSaleRequest = Readonly<{
   branchId: string;
   idempotencyKey: string;
