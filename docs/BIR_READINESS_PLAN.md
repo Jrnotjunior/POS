@@ -55,6 +55,29 @@ The POS repository README states that the initial scaffold is not connected to a
 - Protect taxpayer/invoice data in transit and at rest; restrict access and redact secrets/PII from logs.
 - Validate correction, cancellation, rejected payloads, outage windows, and delayed acknowledgement.
 
+## 3A. Receipt/invoice and X/Z reading implementation gate
+
+The POS now has a **non-fiscal operational receipt** and **X/Z operational report previews**. They are deliberately labelled as not a tax invoice / not a BIR fiscal reading until the taxpayer's approved configuration, tax model, document series, and applicable BIR authorization are implemented and verified. Do not remove these warnings just to make the printout look final.
+
+### Invoice/receipt fields to configure and validate
+
+The current sale schema does not yet store the full approved invoice model. Before enabling an authorized invoice template, implement and validate, at minimum, the taxpayer's registered name and business/trade name (as applicable), VAT/non-VAT status, TIN including branch code, registered business address, approved invoice type/term, controlled serial number, transaction date/time, item description, quantity, unit price, line amount, totals and applicable tax/discount breakdowns. Add the applicable CRM/POS/software identity and permit/acknowledgement details, invoice reprint marking, and any further fields required by the taxpayer's current authorization and applicable rules. Buyer details should be collected/printed when required by the transaction and law, not invented.
+
+**Current-law check:** RR No. 6-2026 amended the mandatory invoice information to include creditable withholding tax information; RMC No. 112-2026 clarifies separate presentation and transitory guidance. The tax model/template must account for applicability and display this information separately when required. Confirm the full text, annexes, transition rules, and the taxpayer's circumstances with Philippine tax counsel before enabling issuance.
+
+### X/Z readings and electronic sales journal
+
+- X reading should be a non-resetting, on-demand reading of the approved fiscal counters; it must not close a shift or reset totals.
+- Z reading must be a controlled end-of-day/authorized close operation with unique sequence, prior/next counters as required by the approved system, retained immutable output, and a traceable operator/time record. Reprinting must be identified and must not create a second close or advance counters.
+- Keep the electronic sales journal and Z-reading extractable in the format and structure required for the actual BIR registration/accreditation route. Reports must derive from authoritative, complete server-side transaction data, including the applicable tax, discounts, voids/returns/corrections, payment methods, and invoice series—not only the currently displayed client history or cash-shift totals.
+- Current operational previews intentionally do **not** satisfy these fiscal requirements: they do not include tax breakdowns, invoice sequence/counters, void/return/correction flows, approved machine/software identifiers, or taxpayer authorization details. Do not market or use them as BIR X/Z readings.
+
+Relevant official references to review against the current taxpayer/provider route:
+- RR No. 7-2024 and RMC No. 77-2024 (invoice information and EOPT invoicing changes): https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2077-2024.pdf
+- RR No. 6-2026 (creditable withholding tax information): https://www.bir.gov.ph/2026-Revenue-Regulations
+- RMC No. 112-2026 (separate presentation/transitory guidance): https://www.bir.gov.ph/2026-Revenue-Memorandum-Circulars
+- RMO No. 15-2018 (post-evaluation, eSales journal and Z-reading context; confirm continuing applicability and later amendments): https://bir-cdn.bir.gov.ph/local/pdf/RMO_No.15-2018.pdf
+
 ## 4. Regulatory references to verify before implementation
 
 Official sources reviewed on 2026-10-31; tax counsel must confirm current applicability and later amendments:
