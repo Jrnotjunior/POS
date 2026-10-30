@@ -187,7 +187,7 @@ Deno.serve(async(req:Request)=>{
       // on a subsequent history refresh or reconstruct amounts from the browser cart.
       const {data:savedLines,error:savedLinesError}=await admin.from("pos_sale_items")
         .select("line_number,item_name_snapshot,unit_price_centavos,quantity,line_total_centavos")
-        .eq("tenant_id",context.tenantId).eq("branch_id",branchId).eq("sale_id",saleId)
+        .eq("tenant_id",context.tenantId).eq("sale_id",saleId)
         .order("line_number",{ascending:true});
       if(savedLinesError)throw savedLinesError;
       if(!savedLines||savedLines.length===0)throw new Error("cash_sale_persisted_lines_not_found");
