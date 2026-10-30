@@ -56,7 +56,7 @@ export function renderCashReceiptHtml(
   const body = `<h1>Web2table</h1><p>${escapeReceiptHtml(context.sellerName)}</p><p>${escapeReceiptHtml(context.branchName)}</p>
     <div class="warning">NOT A TAX INVOICE<br><span class="muted">Taxpayer/BIR configuration and authorization are not yet verified.</span></div>
     <h2>Cash Sales Receipt</h2><p>${saleNumber}</p><p class="muted">${escapeReceiptHtml(new Date(sale.created_at).toLocaleString())}</p>
-    <p class="muted">Cashier: ${escapeReceiptHtml(context.cashierName)}</p><table><thead><tr><th>Item</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="muted">Cashier: ${escapeReceiptHtml(context.cashierName)}</p>${sale.customer_name ? `<p class="muted">Customer: ${escapeReceiptHtml(sale.customer_name)}</p>` : ''}<table><thead><tr><th>Item</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="row"><span>Subtotal</span><span>${formatPhp(moneyFromCentavos(sale.subtotal_centavos))}</span></div>
     <div class="row total"><span>Total paid</span><span>${formatPhp(moneyFromCentavos(sale.total_centavos))}</span></div>
     <div class="row"><span>Cash received</span><span>${formatPhp(moneyFromCentavos(sale.cash_tendered_centavos))}</span></div>
