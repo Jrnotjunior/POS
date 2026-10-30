@@ -14,17 +14,6 @@ import '../styles/pos-transactions.css';
 type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; imageUrl: string | null };
 type View = 'register' | 'transactions' | 'orders' | 'shifts' | 'fiscal';
-const demoProducts: Product[] = [
-  { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), imageUrl: null },
-  { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), imageUrl: null },
-  { id: 'meal-003', name: 'Beef Rice Bowl', category: 'Meals', price: moneyFromCentavos(16900), imageUrl: null },
-  { id: 'meal-004', name: 'Pasta Alfredo', category: 'Meals', price: moneyFromCentavos(19900), imageUrl: null },
-  { id: 'drink-001', name: 'Iced Tea', category: 'Drinks', price: moneyFromCentavos(4900), imageUrl: null },
-  { id: 'drink-002', name: 'Iced Coffee', category: 'Drinks', price: moneyFromCentavos(7900), imageUrl: null },
-  { id: 'side-001', name: 'French Fries', category: 'Sides', price: moneyFromCentavos(6900), imageUrl: null },
-  { id: 'side-002', name: 'Extra Rice', category: 'Sides', price: moneyFromCentavos(2500), imageUrl: null },
-];
-
 function newIdempotencyKey(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -36,9 +25,9 @@ export function PosApp() {
   const apiClient = useMemo(() => createConfiguredPosApiClient(), []);
   const [authReady, setAuthReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
-  const [products, setProducts] = useState<Product[]>(apiClient ? [] : demoProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [session, setSession] = useState<PosSessionContext | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'demo' | 'loading' | 'connected' | 'error'>(apiClient ? 'loading' : 'demo');
+  const [connectionStatus, setConnectionStatus] = useState<'loading' | 'connected' | 'error'>(apiClient ? 'loading' : 'error');
   const [category, setCategory] = useState<Category>('All items');
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +67,7 @@ export function PosApp() {
   useEffect(() => {
     let active = true;
     async function checkExistingSession() {
-      if (!apiClient || !supabaseAuth) { setAuthReady(true); return; }
+      if (!apiClient || !supabaseAuth) { setConnectionStatus('error'); setNotice('POS is not configured for live service. Configure the Supabase URL, public key, and POS API URL before using this register.'); setAuthReady(true); return; }
       try {
         const { data } = await supabaseAuth.auth.getSession();
         if (data.session) {
@@ -409,8 +398,9 @@ export function PosApp() {
     }
   }
 
-  if (apiClient && !authReady) return <main className="pos-auth-page"><p role="status">Checking secure session…</p></main>;
-  if (apiClient && !authenticated) return <PosSignIn onAuthenticated={() => { setAuthenticated(true); setConnectionStatus('loading'); setNotice(''); }} />;
+  if (!authReady) return <main className="pos-auth-page"><p role="status">Checking secure session…</p></main>;
+  if (!apiClient || !supabaseAuth) return <main className="pos-auth-page"><section className="pos-auth-card" role="alert"><h1>Live POS is not configured</h1><p>This register requires the restaurant’s authenticated POS API. Demo products and demo checkout are disabled.</p><p>{notice || 'Configure the Supabase URL, public key, and POS API URL in the deployment environment.'}</p></section></main>;
+  if (!authenticated) return <PosSignIn onAuthenticated={() => { setAuthenticated(true); setConnectionStatus('loading'); setNotice(''); }} />;
 
   return (
     <div className="pos-shell">
@@ -452,7 +442,7 @@ export function PosApp() {
               setLastClosedShift(null);
               setConnectionStatus('loading');
             }
-          }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE MENU' : connectionStatus === 'loading' ? 'CONNECTING' : connectionStatus === 'error' ? 'API ERROR' : 'DEMO DATA'}</span><div className="pos-account-menu"><button className="pos-account-button" type="button" aria-label="Open account menu" aria-expanded={accountMenuOpen} aria-haspopup="menu" onClick={() => setAccountMenuOpen(open => !open)}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20c.5-3.5 3-5.5 6.5-5.5s6 2 6.5 5.5" /></svg></button>{accountMenuOpen && <div className="pos-account-dropdown" role="menu"><div className="pos-account-name">{session?.displayName ?? 'Demo cashier'}</div><div className="pos-account-role">{session?.role?.replaceAll('_', ' ') ?? 'Cashier'}</div>{authenticated && <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); const signOutButton = document.querySelector<HTMLButtonElement>('.pos-sign-out'); signOutButton?.click(); }} >Log out</button>}</div>}</div></div></header>
+          }}>Sign out</button>}<span className="demo-badge">{connectionStatus === 'connected' ? 'LIVE POS' : connectionStatus === 'loading' ? 'CONNECTING' : 'API ERROR'}</span><div className="pos-account-menu"><button className="pos-account-button" type="button" aria-label="Open account menu" aria-expanded={accountMenuOpen} aria-haspopup="menu" onClick={() => setAccountMenuOpen(open => !open)}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20c.5-3.5 3-5.5 6.5-5.5s6 2 6.5 5.5" /></svg></button>{accountMenuOpen && <div className="pos-account-dropdown" role="menu"><div className="pos-account-name">{session?.displayName ?? 'Account name unavailable'}</div><div className="pos-account-role">{session?.role?.replaceAll('_', ' ') ?? 'Cashier'}</div>{authenticated && <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); const signOutButton = document.querySelector<HTMLButtonElement>('.pos-sign-out'); signOutButton?.click(); }} >Log out</button>}</div>}</div></div></header>
         <div className="pos-content">
           {view === 'register' ? <>
             
@@ -462,14 +452,14 @@ export function PosApp() {
                 <label className="product-search"><span aria-hidden="true">⌕</span><input ref={searchInputRef} type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu items" aria-label="Search menu items" /><kbd>⌘ K</kbd></label>
                 <div className="category-tabs" role="group" aria-label="Filter by category">{categoryOptions.map((item) => <button key={item} type="button" className={category === item ? 'is-selected' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item}</button>)}</div>
                 <div className="product-grid">{visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}><span className="product-art">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.parentElement?.classList.add('has-image-error'); }} /> : <span className="product-art-fallback" aria-hidden="true">No image</span>}</span><span className="product-card-copy"><span className="product-name">{product.name}</span><span className="product-category">{product.category}</span><strong>{formatPhp(product.price)}</strong></span><span className="add-product" aria-hidden="true">+</span></button>)}{visibleProducts.length === 0 && <div className="catalog-empty">{connectionStatus === 'loading' ? 'Loading your restaurant menu…' : connectionStatus === 'error' ? 'The live menu could not be loaded. Please retry your connection.' : products.length === 0 ? 'No available menu items for this branch.' : 'No menu items match your search.'}</div>}</div>
-                {connectionStatus === 'demo' && <p className="sample-data-note">Sample menu only · Cash checkout is disabled outside the trusted API.</p>}{connectionStatus === 'loading' && <p className="sample-data-note">Loading menu from your authorized branch…</p>}{connectionStatus === 'error' && <p className="sample-data-note">Live menu unavailable. Checkout remains disabled.</p>}
+                {connectionStatus === 'loading' && <p className="sample-data-note">Loading menu from your authorized branch…</p>}{connectionStatus === 'error' && <p className="sample-data-note">Live menu unavailable. Checkout remains disabled.</p>}
               </section>
               <aside className="order-panel" aria-label="Current order">
                 <div className="order-panel-heading"><div><p className="pos-eyebrow">CURRENT SALE</p><h2>New order</h2></div><button className="text-button" type="button" onClick={() => { setCart([]); setNotice(''); }} disabled={cart.length === 0}>Clear</button></div>
                 <div className="order-reference"><span className="order-reference-icon" aria-hidden="true">＋</span><div><strong>{session?.displayName ?? 'Walk-in customer'}</strong><span>{session ? `${session.branchName} · Draft` : 'In-store order · Draft'}</span></div><span className="draft-pill">DRAFT</span></div>
                 <div className="order-lines-heading"><span>ITEM</span><span>QTY</span><span className="align-right">TOTAL</span></div>
                 <div className="order-lines">{cart.length === 0 ? <div className="empty-order"><span className="empty-order-icon" aria-hidden="true">▤</span><strong>Your order is empty</strong><p>Select items from the menu to get started.</p></div> : cart.map((line) => <div className="order-line" key={line.product.id}><div className="order-line-product"><strong>{line.product.name}</strong><span>{formatPhp(line.product.price)} each</span></div><div className="quantity-control"><button type="button" onClick={() => changeQuantity(line.product.id, -1)} aria-label={`Remove one ${line.product.name}`}>−</button><span>{line.quantity}</span><button type="button" onClick={() => changeQuantity(line.product.id, 1)} aria-label={`Add one ${line.product.name}`}>+</button></div><strong className="line-total">{formatPhp(multiplyMoney(line.product.price, line.quantity))}</strong></div>)}</div>
-                <div className="order-summary"><div><span>Items</span><span>{itemCount}</span></div><div><span>Subtotal</span><strong>{formatPhp(subtotal)}</strong></div><div><span>Tax and discounts</span><span className="not-configured">Not configured</span></div><div className="order-total"><span>Total</span><strong>{formatPhp(subtotal)}</strong></div>{connectionStatus === 'demo' && <p className="tax-disclaimer">Demo prices are for preview only. Use the authorized live menu for actual sales.</p>}</div>
+                <div className="order-summary"><div><span>Items</span><span>{itemCount}</span></div><div><span>Subtotal</span><strong>{formatPhp(subtotal)}</strong></div><div><span>Tax and discounts</span><span className="not-configured">Not configured</span></div><div className="order-total"><span>Total</span><strong>{formatPhp(subtotal)}</strong></div></div>
                 {notice && <div className="pos-notice" role="status">{notice}</div>}
                 <button className="checkout-button" type="button" disabled={connectionStatus !== 'connected' || !cashierShift?.active || cart.length === 0} onClick={() => { setCashReceived(''); setCheckoutOpen(true); }}>Checkout · Cash <span aria-hidden="true">→</span></button>
                 <p className="checkout-caption">{connectionStatus !== 'connected' ? 'Connect to the authorized POS API to accept a sale.' : !cashierShift?.active ? 'Open a cashier shift before accepting cash sales.' : 'Cash sales are saved to your active shift.'}</p>
