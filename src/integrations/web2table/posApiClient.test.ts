@@ -77,7 +77,7 @@ describe('POS API client', () => {
     expect(() => createPosApiClient({ baseUrl: '   ' })).toThrow('POS API base URL is not configured.');
   });
   it('creates a cash sale with the same idempotency key and bearer token', async () => {
-    const sale = { id: 'sale-1', sale_number: 1, subtotal_centavos: 51000, total_centavos: 51000, payment_method: 'cash', payment_status: 'paid', cash_tendered_centavos: 51000, change_centavos: 0, created_at: '2026-10-30T10:00:00Z' };
+    const sale = { id: 'sale-1', sale_number: 1, subtotal_centavos: 51000, total_centavos: 51000, payment_method: 'cash', payment_status: 'paid', cash_tendered_centavos: 51000, change_centavos: 0, created_at: '2026-10-30T10:00:00Z', items: [{ line_number: 1, item_name_snapshot: 'Burger', unit_price_centavos: 51000, quantity: 1, line_total_centavos: 51000 }] };
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: sale }, 201));
     const client = createPosApiClient({ baseUrl: 'https://api.example.test/', fetcher, getAccessToken: async () => 'test-access-token' });
     const request = { branchId: 'branch-1', idempotencyKey: 'key-1', cashTenderedCentavos: 51000, items: [{ itemId: 'item-1', quantity: 1 }] };
