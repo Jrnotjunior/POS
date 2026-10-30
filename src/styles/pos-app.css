@@ -113,3 +113,10 @@
 .pos-account-button:hover{background:#f8fafc;border-color:#cbd5e1}
 .pos-account-button:focus-visible{outline:2px solid #64748b;outline-offset:2px}
 .pos-account-button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+.pos-account-menu{position:relative;display:flex;align-items:center}
+.pos-account-dropdown{position:absolute;z-index:30;top:calc(100% + 10px);right:0;width:224px;padding:8px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:0 12px 32px rgba(15,23,42,.12)}
+.pos-account-name{padding:9px 10px 2px;color:#101b2f;font-size:12px;font-weight:700;overflow-wrap:anywhere}
+.pos-account-role{padding:0 10px 10px;color:#64748b;font-size:11px;text-transform:capitalize;border-bottom:1px solid #e2e8f0}
+.pos-account-dropdown button{width:100%;margin-top:6px;padding:9px 10px;border:0;border-radius:7px;background:#fff;color:#334155;text-align:left;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.pos-account-dropdown button:hover{background:#f1f5f9;color:#101b2f}
