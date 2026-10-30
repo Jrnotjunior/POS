@@ -38,3 +38,5 @@
 .pos-auth-error { margin: 0; color: #b91c1c; font-size: 13px; line-height: 1.5; }
 .pos-auth-security { margin: 22px 0 0; padding-top: 16px; border-top: 1px solid var(--color-border, #dfe5ed); color: var(--color-slate, #64748b); font-size: 11px; line-height: 1.6; }
 @media (max-width: 480px) { .pos-auth-card { padding: 26px 22px; } }
+
+.pos-sign-out { border: 1px solid var(--color-border, #dfe5ed); border-radius: 7px; padding: 7px 10px; background: #fff; color: var(--color-navy, #101b2f); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
