@@ -167,8 +167,7 @@ export function PosApp() {
     setSales([]);
     try {
       const branchSales = await apiClient.getBranchSales(requestedBranchId);
-      // Ignore a stale response if the authenticated branch changed while the request was in flight.
-      if (sessionRef.current?.branchId === requestedBranchId) setSales(branchSales);
+      setSales(branchSales);
     } catch (error) {
       setSalesError(error instanceof Error ? error.message : 'Could not load transaction history.');
     } finally {
