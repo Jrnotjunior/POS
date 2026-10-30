@@ -12,14 +12,14 @@ type Category = string;
 type Product = { id: string; name: string; category: string; price: Money; imageUrl: string | null };
 type View = 'register' | 'transactions' | 'shifts';
 const demoProducts: Product[] = [
-  { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), initials: 'CB' },
-  { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), initials: 'CC' },
-  { id: 'meal-003', name: 'Beef Rice Bowl', category: 'Meals', price: moneyFromCentavos(16900), initials: 'BR' },
-  { id: 'meal-004', name: 'Pasta Alfredo', category: 'Meals', price: moneyFromCentavos(19900), initials: 'PA' },
-  { id: 'drink-001', name: 'Iced Tea', category: 'Drinks', price: moneyFromCentavos(4900), initials: 'IT' },
-  { id: 'drink-002', name: 'Iced Coffee', category: 'Drinks', price: moneyFromCentavos(7900), initials: 'IC' },
-  { id: 'side-001', name: 'French Fries', category: 'Sides', price: moneyFromCentavos(6900), initials: 'FF' },
-  { id: 'side-002', name: 'Extra Rice', category: 'Sides', price: moneyFromCentavos(2500), initials: 'ER' },
+  { id: 'meal-001', name: 'Classic Burger', category: 'Meals', price: moneyFromCentavos(18900), imageUrl: null },
+  { id: 'meal-002', name: 'Crispy Chicken', category: 'Meals', price: moneyFromCentavos(21900), imageUrl: null },
+  { id: 'meal-003', name: 'Beef Rice Bowl', category: 'Meals', price: moneyFromCentavos(16900), imageUrl: null },
+  { id: 'meal-004', name: 'Pasta Alfredo', category: 'Meals', price: moneyFromCentavos(19900), imageUrl: null },
+  { id: 'drink-001', name: 'Iced Tea', category: 'Drinks', price: moneyFromCentavos(4900), imageUrl: null },
+  { id: 'drink-002', name: 'Iced Coffee', category: 'Drinks', price: moneyFromCentavos(7900), imageUrl: null },
+  { id: 'side-001', name: 'French Fries', category: 'Sides', price: moneyFromCentavos(6900), imageUrl: null },
+  { id: 'side-002', name: 'Extra Rice', category: 'Sides', price: moneyFromCentavos(2500), imageUrl: null },
 ];
 
 function newIdempotencyKey(): string {
@@ -250,7 +250,7 @@ export function PosApp() {
                 <div className="catalog-heading"><div><h2>Menu</h2><p>Select an item to add it to the order.</p></div><span className="catalog-count">{visibleProducts.length} items</span></div>
                 <label className="product-search"><span aria-hidden="true">⌕</span><input ref={searchInputRef} type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search menu items" aria-label="Search menu items" /><kbd>⌘ K</kbd></label>
                 <div className="category-tabs" role="group" aria-label="Filter by category">{categoryOptions.map((item) => <button key={item} type="button" className={category === item ? 'is-selected' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item}</button>)}</div>
-                <div className="product-grid">{visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}><span className="product-art">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /> : <span className="product-art-fallback" aria-hidden="true">No image</span>}</span><span className="product-card-copy"><span className="product-name">{product.name}</span><span className="product-category">{product.category}</span><strong>{formatPhp(product.price)}</strong></span><span className="add-product" aria-hidden="true">+</span></button>)}{visibleProducts.length === 0 && <div className="catalog-empty">{connectionStatus === 'loading' ? 'Loading your restaurant menu…' : connectionStatus === 'error' ? 'The live menu could not be loaded. Please retry your connection.' : products.length === 0 ? 'No available menu items for this branch.' : 'No menu items match your search.'}</div>}</div>
+                <div className="product-grid">{visibleProducts.map((product) => <button className="product-card" type="button" key={product.id} onClick={() => addProduct(product)}><span className="product-art">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.parentElement?.classList.add('has-image-error'); }} /> : <span className="product-art-fallback" aria-hidden="true">No image</span>}</span><span className="product-card-copy"><span className="product-name">{product.name}</span><span className="product-category">{product.category}</span><strong>{formatPhp(product.price)}</strong></span><span className="add-product" aria-hidden="true">+</span></button>)}{visibleProducts.length === 0 && <div className="catalog-empty">{connectionStatus === 'loading' ? 'Loading your restaurant menu…' : connectionStatus === 'error' ? 'The live menu could not be loaded. Please retry your connection.' : products.length === 0 ? 'No available menu items for this branch.' : 'No menu items match your search.'}</div>}</div>
                 {connectionStatus === 'demo' && <p className="sample-data-note">Sample menu only · Cash checkout is disabled outside the trusted API.</p>}{connectionStatus === 'loading' && <p className="sample-data-note">Loading menu from your authorized branch…</p>}{connectionStatus === 'error' && <p className="sample-data-note">Live menu unavailable. Checkout remains disabled.</p>}
               </section>
               <aside className="order-panel" aria-label="Current order">
