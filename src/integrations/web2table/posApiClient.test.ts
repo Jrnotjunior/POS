@@ -33,12 +33,13 @@ describe('POS API client', () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ data: session }))
       .mockResolvedValueOnce(jsonResponse({ data: menu }));
-    const client = createPosApiClient({ baseUrl: 'https://api.example.test/', fetcher });
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test/', fetcher, getAccessToken: async () => 'test-access-token' });
 
     await expect(client.getSession()).resolves.toEqual(session);
     await expect(client.getBranchMenu(session.branchId)).resolves.toEqual(menu);
     expect(fetcher).toHaveBeenNthCalledWith(1, 'https://api.example.test/api/pos/v1/session', expect.objectContaining({
-      credentials: 'include',
+      credentials: 'omit',
+      headers: { Accept: 'application/json', Authorization: 'Bearer test-access-token' },
     }));
     expect(fetcher).toHaveBeenNthCalledWith(2, 'https://api.example.test/api/pos/v1/branches/branch-1/menu', expect.objectContaining({
       credentials: 'include',
@@ -47,11 +48,11 @@ describe('POS API client', () => {
 
   it('encodes branch identifiers as path segments', async () => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: menu }));
-    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher });
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
     await client.getBranchMenu('branch/with spaces');
     expect(fetcher).toHaveBeenCalledWith(
       'https://api.example.test/api/pos/v1/branches/branch%2Fwith%20spaces/menu',
-      expect.any(Object),
+      { method: 'GET', credentials: 'omit', headers: { Accept: 'application/json', Authorization: 'Bearer test-access-token' } },
     );
   });
 
