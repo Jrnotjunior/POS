@@ -29,8 +29,8 @@ CREATE OR REPLACE FUNCTION public.create_pos_cash_sale_with_customer(
   p_idempotency_key uuid,
   p_items jsonb,
   p_cash_tendered_centavos bigint,
-  p_customer_user_id uuid DEFAULT NULL,
-  p_customer_name text DEFAULT NULL
+  p_customer_user_id uuid,
+  p_customer_name text
 ) RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
