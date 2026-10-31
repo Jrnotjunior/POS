@@ -236,7 +236,7 @@ export type PosCashSaleRequest = Readonly<{
   idempotencyKey: string;
   cashTenderedCentavos: number;
   customerName: string | null;
-  customerUserId: string | null;
+  customerId: string | null;
   items: readonly Readonly<{ itemId: string; quantity: number }>[];
 }>;
 
@@ -265,10 +265,10 @@ export type PosCashSaleResult = Readonly<{
 
 export type PosCashSaleHistoryItem = PosCashSaleResult;
 
-export type PosLoyaltyCustomer = Readonly<{ customerUserId: string; displayName: string; phoneLastFour: string }>;
+export type PosLoyaltyCustomer = Readonly<{ customerId: string; displayName: string; phoneLastFour: string }>;
 
 export type PosLoyaltyBalance = Readonly<{
-  customerUserId: string;
+  customerId: string;
   account: Readonly<{ points_balance: number; lifetime_points_earned: number; lifetime_points_redeemed: number; eligible_spend_centavos: number; updated_at: string | null }>;
   settings: Readonly<{ enabled: boolean; amount_threshold: number | null; points_awarded: number; redemption_enabled: boolean; redemption_points: number; redemption_amount: number | null }>;
 }>;
