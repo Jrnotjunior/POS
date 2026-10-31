@@ -66,6 +66,20 @@ describe('POS API client', () => {
     });
   });
 
+  it('shows the explicit administrator-activation message when POS is not enabled', async () => {
+    const message = 'POS integration has not been activated for this restaurant. Use the standard Web2table cashier or contact your platform administrator.';
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({
+      error: { code: 'POS_NOT_ENABLED', message, requestId: 'request-1' },
+    }, 403));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+    await expect(client.getSession()).rejects.toMatchObject({
+      name: 'PosApiClientError',
+      code: 'POS_NOT_ENABLED',
+      status: 403,
+      message,
+    });
+  });
+
   it('maps unauthorized responses to a clear typed error', async () => {
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'FORBIDDEN', message: 'No branch access.' } }, 403));
     const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
