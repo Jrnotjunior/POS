@@ -154,7 +154,10 @@ Deno.serve(async(req:Request)=>{
       const branchId=typeof body.branchId==="string"?body.branchId:"";
       const idempotencyKey=typeof body.idempotencyKey==="string"?body.idempotencyKey:"";
       const cashTendered=body.cashTenderedCentavos;
-      if(!uuid(branchId)||!uuid(idempotencyKey)||!Number.isSafeInteger(cashTendered)||Number(cashTendered)<1||Number(cashTendered)>2000000000||!Array.isArray(body.items)||body.items.length<1||body.items.length>50)
+      const customerId=body.customerId===null||body.customerId===undefined||body.customerId===""?null:typeof body.customerId==="string"?body.customerId.trim():"invalid";
+      const customerName=body.customerName===null||body.customerName===undefined?null:typeof body.customerName==="string"?body.customerName.trim():"invalid";
+      if(!uuid(branchId)||!uuid(idempotencyKey)||!Number.isSafeInteger(cashTendered)||Number(cashTendered)<1||Number(cashTendered)>2000000000||!Array.isArray(body.items)||body.items.length<1||body.items.length>50
+        ||(customerId!==null&&!uuid(customerId))||(customerName!==null&&(customerName==="invalid"||customerName.length>120)))
         return response(req,err("VALIDATION_ERROR","Branch, request key, cash received, and sale items are required.",requestId),400,requestId);
       const saleItems:Rec[]=[];
       for(const value of body.items){
@@ -164,9 +167,11 @@ Deno.serve(async(req:Request)=>{
           return response(req,err("VALIDATION_ERROR","A sale item or quantity is invalid.",requestId),400,requestId);
         saleItems.push({item_id:line.itemId,quantity:line.quantity});
       }
-      const {data:sale,error:saleError}=await admin.rpc("create_pos_cash_sale",{
+      const {data:sale,error:saleError}=await admin.rpc("create_pos_cash_sale_with_customer",{
         p_actor_user_id:auth.user.id,p_branch_id:branchId,p_idempotency_key:idempotencyKey,
-        p_items:saleItems,p_cash_tendered_centavos:Number(cashTendered)
+        p_items:saleItems,p_cash_tendered_centavos:Number(cashTendered),
+        p_customer_user_id:customerId,
+        p_customer_name:customerName
       });
       if(saleError){
         const code=(saleError as unknown as Rec).code;
