@@ -345,7 +345,7 @@ export function PosApp() {
     customerSearchRequestId.current += 1;
     setLoyaltyCustomer(customer); setCustomerName(customer.displayName); setLoyaltySearch(customer.displayName); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
     try {
-      const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerUserId);
+      const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerId);
       setLoyaltyBalance(balance);
     } catch (error) {
       setLoyaltyBalance(null);
@@ -367,7 +367,7 @@ export function PosApp() {
         idempotencyKey: pendingSaleKey.current.key,
         cashTenderedCentavos: receivedCentavos,
         customerName: customerName.trim() || null,
-        customerUserId: loyaltyCustomer?.customerUserId ?? null,
+        customerId: loyaltyCustomer?.customerId ?? null,
         items: cart.map((line) => ({ itemId: line.product.id, quantity: line.quantity })),
       });
       pendingSaleKey.current = null;
@@ -520,7 +520,7 @@ export function PosApp() {
                     else { setLoyaltyCustomers([]); setLoyaltyLoading(false); setLoyaltyBalance(null); }
                   }} placeholder="Enter customer name" aria-describedby="pos-customer-help" />
                   <small id="pos-customer-help" className="pos-customer-help">Type a name to find an existing customer account.</small>
-                  {loyaltyCustomers.length > 0 && !loyaltyCustomer && <div className="pos-loyalty-results" role="listbox" aria-label="Matching customer accounts">{loyaltyCustomers.map((customer) => <button key={customer.customerUserId} type="button" role="option" onClick={() => void selectLoyaltyCustomer(customer)}><span><strong>{customer.displayName}</strong><small>Phone ending {customer.phoneLastFour || '----'}</small></span><span>Select</span></button>)}</div>}
+                  {loyaltyCustomers.length > 0 && !loyaltyCustomer && <div className="pos-loyalty-results" role="listbox" aria-label="Matching customer accounts">{loyaltyCustomers.map((customer) => <button key={customer.customerId} type="button" role="option" onClick={() => void selectLoyaltyCustomer(customer)}><span><strong>{customer.displayName}</strong><small>Phone ending {customer.phoneLastFour || '----'}</small></span><span>Select</span></button>)}</div>}
                   {loyaltyLoading && !loyaltyCustomer && <p className="pos-loyalty-meta" role="status">Finding customer accounts…</p>}
                   {loyaltyCustomer && <div className="pos-customer-selected"><span>Selected: <strong>{loyaltyCustomer.displayName}</strong></span><button type="button" onClick={() => { setLoyaltyCustomer(null); setLoyaltyBalance(null); setLoyaltySearch(customerName); setLoyaltyError(''); void searchLoyaltyCustomers(customerName); }}>Change</button></div>}
                   {loyaltyCustomer && loyaltyLoading && <p className="pos-loyalty-meta">Loading points balance…</p>}
