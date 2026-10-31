@@ -22,7 +22,9 @@ A dedicated point-of-sale application for the Web2table restaurant platform.
 
 ## Current status
 
-The initial repository foundation and brand-aligned UI scaffold are being established. The current interface uses clearly labeled sample data and is **not connected to production authentication, Supabase, a transaction API, a printer, or BIR e-invoicing**.
+The POS now uses Supabase Auth with MFA assurance checks and the trusted `pos-api` Edge Function for branch-authorized menu, cashier-shift, cash-sale, sale-history, and loyalty lookup workflows. Cash sales are priced and persisted by the database RPC, use idempotency keys, require an open cashier shift, and return persisted line snapshots for receipt rendering. Registered customer suggestions are scoped to the authorized branch; a selected account identity and the customer-name snapshot are persisted with the sale.
+
+The POS API and additive customer-snapshot migration are deployed to the connected Web2Table Supabase project. GitHub Actions verifies typecheck, unit tests, and production build; this does not replace an authenticated end-to-end checkout test with a designated staging cashier account. Physical printer integration and BIR-authorized invoice issuance/transmission are **not enabled or claimed**. Fiscal profile and tax-policy setup remain draft-only until the applicable BIR route and approvals are verified.
 
 ## Development
 
