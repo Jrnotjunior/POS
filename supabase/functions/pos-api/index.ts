@@ -178,6 +178,7 @@ Deno.serve(async(req:Request)=>{
         if(code==="42501")return response(req,err("FORBIDDEN","You do not have permission to create this sale.",requestId),403,requestId);
         if(code==="22023")return response(req,err("VALIDATION_ERROR","The sale request could not be accepted.",requestId),400,requestId);
         if(code==="P0002")return response(req,err("CONFLICT","The sale could not be completed because the requested records changed.",requestId),409,requestId);
+        if(code==="23505")return response(req,err("CONFLICT","This sale request conflicts with a previously saved customer association. Reload the sale before retrying.",requestId),409,requestId);
         throw saleError;
       }
       // The SQL RPC returns sale_id/sale_number, not the full public sale DTO.
@@ -186,19 +187,19 @@ Deno.serve(async(req:Request)=>{
       const saleId=typeof sale?.sale_id==="string"?sale.sale_id:"";
       if(!uuid(saleId))throw new Error("cash_sale_rpc_missing_sale_id");
       const {data:savedSale,error:savedSaleError}=await admin.from("pos_sales")
-        .select("id,sale_number,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,created_at")
-        .eq("id",saleId).eq("tenant_id",context.tenantId).eq("branch_id",branchId).maybeSingle();
+        .select("id,tenant_id,branch_id,sale_number,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,customer_user_id,customer_name_snapshot,created_at")
+        .eq("id",saleId).eq("branch_id",branchId).maybeSingle();
       if(savedSaleError)throw savedSaleError;
       if(!savedSale)throw new Error("cash_sale_persisted_record_not_found");
       // Return only database-persisted line snapshots. Receipt printing must not depend
       // on a subsequent history refresh or reconstruct amounts from the browser cart.
       const {data:savedLines,error:savedLinesError}=await admin.from("pos_sale_items")
         .select("line_number,item_name_snapshot,unit_price_centavos,quantity,line_total_centavos")
-        .eq("tenant_id",context.tenantId).eq("sale_id",saleId)
+        .eq("tenant_id",savedSale.tenant_id).eq("sale_id",saleId)
         .order("line_number",{ascending:true});
       if(savedLinesError)throw savedLinesError;
       if(!savedLines||savedLines.length===0)throw new Error("cash_sale_persisted_lines_not_found");
-      return response(req,{data:{...savedSale,items:savedLines},requestId},201,requestId);
+      return response(req,{data:{...savedSale,customer_name:savedSale.customer_name_snapshot??null,items:savedLines},requestId},201,requestId);
     }
     let orderActionBody:Rec={};
     if(isOrderTransition){
@@ -476,7 +477,7 @@ Deno.serve(async(req:Request)=>{
     if(isSalesHistory){
       const rawLimit=Number(new URL(req.url).searchParams.get("limit")??"50");
       const limit=Math.max(1,Math.min(100,Number.isFinite(rawLimit)?Math.trunc(rawLimit):50));
-      const {data:sales,error:salesError}=await admin.from("pos_sales").select("id,sale_number,cashier_user_id,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,created_at").eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).order("created_at",{ascending:false}).limit(limit);
+      const {data:sales,error:salesError}=await admin.from("pos_sales").select("id,sale_number,cashier_user_id,customer_user_id,customer_name_snapshot,subtotal_centavos,total_centavos,payment_method,payment_status,cash_tendered_centavos,change_centavos,created_at").eq("tenant_id",context.tenantId).eq("branch_id",context.branchId).order("created_at",{ascending:false}).limit(limit);
       if(salesError)throw salesError;
       const saleIds=(sales??[]).map((sale:Rec)=>sale.id).filter((id):id is string=>typeof id==="string");
       let saleLines:Rec[]=[];
@@ -485,7 +486,7 @@ Deno.serve(async(req:Request)=>{
         if(linesError)throw linesError;
         saleLines=(lines??[]) as Rec[];
       }
-      const result=(sales??[]).map((sale:Rec)=>({...sale,items:saleLines.filter((line:Rec)=>line.sale_id===sale.id)}));
+      const result=(sales??[]).map((sale:Rec)=>({...sale,customer_name:sale.customer_name_snapshot??null,items:saleLines.filter((line:Rec)=>line.sale_id===sale.id)}));
       return response(req,{data:result,requestId},200,requestId);
     }
     const {data:rows,error:menuError}=await admin.from("menu_items")
