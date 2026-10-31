@@ -69,6 +69,7 @@ export function PosApp() {
   const [loyaltyBalance, setLoyaltyBalance] = useState<PosLoyaltyBalance | null>(null);
   const [loyaltyLoading, setLoyaltyLoading] = useState(false);
   const [loyaltyError, setLoyaltyError] = useState('');
+  const customerSearchRequestId = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -323,22 +324,28 @@ export function PosApp() {
       setLoyaltyError(query.trim().length < 2 ? '' : '');
       return;
     }
+    const requestId = ++customerSearchRequestId.current;
     setLoyaltyLoading(true); setLoyaltyError(''); setLoyaltyBalance(null); setLoyaltyCustomer(null);
     try {
       const results = await apiClient.searchLoyaltyCustomers(session.branchId, query.trim());
+      if (requestId !== customerSearchRequestId.current) return;
       setLoyaltyCustomers(results);
       if (results.length === 0) setLoyaltyError('No linked customer accounts found for this branch.');
     } catch (error) {
+      if (requestId !== customerSearchRequestId.current) return;
       setLoyaltyCustomers([]);
       setLoyaltyError(error instanceof Error ? error.message : 'Customer search failed.');
-    } finally { setLoyaltyLoading(false); }
+    } finally {
+      if (requestId === customerSearchRequestId.current) setLoyaltyLoading(false);
+    }
   }
 
   async function selectLoyaltyCustomer(customer: PosLoyaltyCustomer) {
     if (!apiClient || !session) return;
-    setLoyaltyCustomer(customer); setCustomerName(customer.displayName); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
+    customerSearchRequestId.current += 1;
+    setLoyaltyCustomer(customer); setCustomerName(customer.displayName); setLoyaltySearch(customer.displayName); setLoyaltyCustomers([]); setLoyaltyLoading(true); setLoyaltyError('');
     try {
-      const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerUserId);
+      const balance = await apiClient.getLoyaltyBalance(session.branchId, customer.customerId);
       setLoyaltyBalance(balance);
     } catch (error) {
       setLoyaltyBalance(null);
@@ -359,6 +366,8 @@ export function PosApp() {
         branchId: session.branchId,
         idempotencyKey: pendingSaleKey.current.key,
         cashTenderedCentavos: receivedCentavos,
+        customerName: customerName.trim() || null,
+        customerId: loyaltyCustomer?.customerId ?? null,
         items: cart.map((line) => ({ itemId: line.product.id, quantity: line.quantity })),
       });
       pendingSaleKey.current = null;
@@ -367,6 +376,13 @@ export function PosApp() {
       // Printing can work immediately without relying on history refresh.
       setCart([]);
       setCashReceived('');
+      setCustomerName('');
+      setLoyaltySearch('');
+      setLoyaltyCustomer(null);
+      setLoyaltyCustomers([]);
+      setLoyaltyBalance(null);
+      setLoyaltyError('');
+      customerSearchRequestId.current += 1;
       setCheckoutOpen(false);
       setNotice(`Sale ${saleLabel(result)} saved successfully.`);
       setView('register');
@@ -495,15 +511,16 @@ export function PosApp() {
                   <label htmlFor="pos-customer-name">Customer name <span>OPTIONAL</span></label>
                   <input id="pos-customer-name" name="customerName" autoComplete="off" maxLength={120} value={customerName} onChange={(event) => {
                     const value = event.target.value.slice(0, 120);
+                    customerSearchRequestId.current += 1;
                     setCustomerName(value);
                     setLoyaltySearch(value);
                     setLoyaltyError('');
-                    if (loyaltyCustomer && value.trim() !== loyaltyCustomer.displayName) { setLoyaltyCustomer(null); setLoyaltyBalance(null); }
+                    if (loyaltyCustomer) { setLoyaltyCustomer(null); setLoyaltyBalance(null); }
                     if (value.trim().length >= 2) void searchLoyaltyCustomers(value);
                     else { setLoyaltyCustomers([]); setLoyaltyLoading(false); setLoyaltyBalance(null); }
                   }} placeholder="Enter customer name" aria-describedby="pos-customer-help" />
                   <small id="pos-customer-help" className="pos-customer-help">Type a name to find an existing customer account.</small>
-                  {loyaltyCustomers.length > 0 && !loyaltyCustomer && <div className="pos-loyalty-results" role="listbox" aria-label="Matching customer accounts">{loyaltyCustomers.map((customer) => <button key={customer.customerUserId} type="button" role="option" onClick={() => void selectLoyaltyCustomer(customer)}><span><strong>{customer.displayName}</strong><small>Phone ending {customer.phoneLastFour || '----'}</small></span><span>Select</span></button>)}</div>}
+                  {loyaltyCustomers.length > 0 && !loyaltyCustomer && <div className="pos-loyalty-results" role="listbox" aria-label="Matching customer accounts">{loyaltyCustomers.map((customer) => <button key={customer.customerId} type="button" role="option" onClick={() => void selectLoyaltyCustomer(customer)}><span><strong>{customer.displayName}</strong><small>Phone ending {customer.phoneLastFour || '----'}</small></span><span>Select</span></button>)}</div>}
                   {loyaltyLoading && !loyaltyCustomer && <p className="pos-loyalty-meta" role="status">Finding customer accounts…</p>}
                   {loyaltyCustomer && <div className="pos-customer-selected"><span>Selected: <strong>{loyaltyCustomer.displayName}</strong></span><button type="button" onClick={() => { setLoyaltyCustomer(null); setLoyaltyBalance(null); setLoyaltySearch(customerName); setLoyaltyError(''); void searchLoyaltyCustomers(customerName); }}>Change</button></div>}
                   {loyaltyCustomer && loyaltyLoading && <p className="pos-loyalty-meta">Loading points balance…</p>}
