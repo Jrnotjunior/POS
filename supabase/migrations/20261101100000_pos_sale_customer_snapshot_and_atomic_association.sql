@@ -65,6 +65,7 @@ BEGIN
       INTO v_resolved_customer_name
       FROM public.customer_orders co
      WHERE co.tenant_id = v_tenant_id
+       AND co.branch_id = p_branch_id
        AND co.customer_user_id = p_customer_user_id
      ORDER BY co.created_at DESC
      LIMIT 1;
