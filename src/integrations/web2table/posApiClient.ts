@@ -230,7 +230,7 @@ export function createPosApiClient(options: PosApiClientOptions) {
       catch { throw new PosApiClientError('The POS service returned invalid JSON.', response.status, 'INVALID_RESPONSE'); }
       const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
       if (!isRecord(data) || typeof data.id !== 'string' || !Number.isSafeInteger(data.sale_number) || !Number.isSafeInteger(data.total_centavos) || !Number.isSafeInteger(data.cash_tendered_centavos) || !Number.isSafeInteger(data.change_centavos)
-        || (data.customer_name !== undefined && data.customer_name !== null && typeof data.customer_name !== 'string'))
+        || (data.customer_name !== undefined && data.customer_name !== null && typeof data.customer_name !== 'string')
         || !Array.isArray(data.items) || data.items.length === 0 || !data.items.every((item) => isRecord(item)
           && Number.isSafeInteger(item.line_number) && Number(item.line_number) > 0
           && typeof item.item_name_snapshot === 'string' && item.item_name_snapshot.trim().length > 0
