@@ -259,6 +259,12 @@ Deno.serve(async(req:Request)=>{
       if(b){context={tenantId:t.id,tenantName:t.name,branchId:b.id,branchName:b.name};break;}
     }
     if(!context)return response(req,err(isMenu||isSalesHistory||isOrders||isOrderTransition?"NOT_FOUND":"FORBIDDEN",isMenu||isSalesHistory||isOrders||isOrderTransition?"The requested branch is unavailable or not authorized.":"No active branch is available for your restaurant account.",requestId),isMenu||isSalesHistory||isOrders||isOrderTransition?404:403,requestId);
+    // POS is an optional tenant entitlement, not a prerequisite for normal Web2table
+    // cashier operations. Enforce it at the API boundary before any POS route returns data.
+    const {data:posEntitlement,error:posEntitlementError}=await admin.from("tenant_pos_integrations")
+      .select("status").eq("tenant_id",context.tenantId).maybeSingle();
+    if(posEntitlementError)throw posEntitlementError;
+    if(posEntitlement?.status!=="active")return response(req,err("POS_NOT_ENABLED","POS integration has not been activated for this restaurant. Use the standard Web2table cashier or contact your platform administrator.",requestId),403,requestId);
     const role=memberships.find((m:Rec)=>m.tenant_id===context!.tenantId)?.role;
     if(isSession){
       // Return only active branches the resolved membership can access. Owners
