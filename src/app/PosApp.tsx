@@ -515,7 +515,7 @@ export function PosApp() {
                     setCustomerName(value);
                     setLoyaltySearch(value);
                     setLoyaltyError('');
-                    if (loyaltyCustomer && value.trim() !== loyaltyCustomer.displayName) { setLoyaltyCustomer(null); setLoyaltyBalance(null); }
+                    if (loyaltyCustomer) { setLoyaltyCustomer(null); setLoyaltyBalance(null); }
                     if (value.trim().length >= 2) void searchLoyaltyCustomers(value);
                     else { setLoyaltyCustomers([]); setLoyaltyLoading(false); setLoyaltyBalance(null); }
                   }} placeholder="Enter customer name" aria-describedby="pos-customer-help" />
