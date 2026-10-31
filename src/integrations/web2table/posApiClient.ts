@@ -70,7 +70,7 @@ async function readError(response: Response): Promise<PosApiClientError> {
   if (isRecord(body) && isRecord(body.error)) {
     const error = body.error as unknown as Partial<PosApiError>;
     const allowedCodes: PosApiError['code'][] = [
-      'UNAUTHENTICATED', 'FORBIDDEN', 'NOT_FOUND', 'VALIDATION_ERROR',
+      'POS_NOT_ENABLED', 'UNAUTHENTICATED', 'FORBIDDEN', 'NOT_FOUND', 'VALIDATION_ERROR',
       'CONFLICT', 'RATE_LIMITED', 'INTERNAL_ERROR',
     ];
     if (typeof error.message === 'string') {
