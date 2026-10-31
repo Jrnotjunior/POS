@@ -140,20 +140,20 @@ export function createPosApiClient(options: PosApiClientOptions) {
       const payload = await getJson('/api/pos/v1/loyalty/customers?branchId=' + encodeURIComponent(branchId) + '&q=' + encodeURIComponent(normalized));
       const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
       if (!Array.isArray(data) || data.length > 20 || data.some((item) => !isRecord(item)
-        || typeof item.customerUserId !== 'string' || !item.customerUserId
+        || typeof item.customerId !== 'string' || !item.customerId
         || typeof item.displayName !== 'string' || typeof item.phoneLastFour !== 'string')) {
         throw new PosApiClientError('The POS service returned an invalid customer search response.', 502, 'INVALID_RESPONSE');
       }
       return data as unknown as PosLoyaltyCustomer[];
     },
 
-    async getLoyaltyBalance(branchId: string, customerUserId: string): Promise<PosLoyaltyBalance> {
-      if (!branchId.trim() || !customerUserId.trim()) {
+    async getLoyaltyBalance(branchId: string, customerId: string): Promise<PosLoyaltyBalance> {
+      if (!branchId.trim() || !customerId.trim()) {
         throw new PosApiClientError('A branch and customer identity are required.', 400, 'VALIDATION_ERROR');
       }
-      const payload = await getJson('/api/pos/v1/loyalty/balance?branchId=' + encodeURIComponent(branchId) + '&customerUserId=' + encodeURIComponent(customerUserId));
+      const payload = await getJson('/api/pos/v1/loyalty/balance?branchId=' + encodeURIComponent(branchId) + '&customerId=' + encodeURIComponent(customerId));
       const data = isRecord(payload) && 'data' in payload ? payload.data : payload;
-      if (!isRecord(data) || data.customerUserId !== customerUserId || !isRecord(data.account) || !isRecord(data.settings)
+      if (!isRecord(data) || data.customerId !== customerId || !isRecord(data.account) || !isRecord(data.settings)
         || !Number.isSafeInteger(data.account.points_balance) || Number(data.account.points_balance) < 0
         || !Number.isSafeInteger(data.account.lifetime_points_earned) || Number(data.account.lifetime_points_earned) < 0
         || !Number.isSafeInteger(data.account.lifetime_points_redeemed) || Number(data.account.lifetime_points_redeemed) < 0
@@ -213,7 +213,7 @@ export function createPosApiClient(options: PosApiClientOptions) {
       if (!request.branchId.trim() || !request.idempotencyKey.trim()
         || !Number.isSafeInteger(request.cashTenderedCentavos) || request.cashTenderedCentavos < 1
         || (request.customerName !== null && (typeof request.customerName !== 'string' || request.customerName.trim().length > 120))
-        || (request.customerUserId !== null && (typeof request.customerUserId !== 'string' || !request.customerUserId.trim()))
+        || (request.customerId !== null && (typeof request.customerId !== 'string' || !request.customerId.trim()))
         || request.items.length < 1 || request.items.length > 50
         || !request.items.every((item) => typeof item.itemId === 'string' && item.itemId.trim().length > 0 && Number.isSafeInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 100)) {
         throw new PosApiClientError('Check the cash received and sale items before submitting.', 400, 'VALIDATION_ERROR');
