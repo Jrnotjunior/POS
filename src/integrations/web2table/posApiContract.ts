@@ -114,6 +114,7 @@ export function isValidPosStaffOrder(value: unknown): value is PosStaffOrder {
 }
 
 export type PosApiErrorCode =
+  | 'POS_NOT_ENABLED'
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
