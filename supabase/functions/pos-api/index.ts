@@ -289,14 +289,14 @@ Deno.serve(async(req:Request)=>{
       for(const row of rows??[]){
         const id=typeof row.customer_user_id==="string"?row.customer_user_id:"";
         if(!uuid(id)||unique.has(id))continue;
-        unique.set(id,{customerUserId:id,displayName:String(row.customer_name??"Customer"),phoneLastFour:String(row.customer_phone_normalized??"").slice(-4)});
+        unique.set(id,{customerId:id,displayName:String(row.customer_name??"Customer"),phoneLastFour:String(row.customer_phone_normalized??"").slice(-4)});
         if(unique.size>=20)break;
       }
       return response(req,{data:Array.from(unique.values()),requestId},200,requestId);
     }
     if(isLoyaltyBalance){
       const params=new URL(req.url).searchParams;
-      const customerUserId=params.get("customerUserId")??"";
+      const customerUserId=params.get("customerId")??"";
       if(!uuid(customerUserId))return response(req,err("VALIDATION_ERROR","A valid customer identity is required.",requestId),400,requestId);
       const {data:account,error:accountError}=await admin.from("tenant_customer_loyalty_accounts")
         .select("points_balance,lifetime_points_earned,lifetime_points_redeemed,eligible_spend_centavos,updated_at")
@@ -306,7 +306,7 @@ Deno.serve(async(req:Request)=>{
         .select("enabled,amount_threshold,points_awarded,redemption_enabled,redemption_points,redemption_amount")
         .eq("tenant_id",context.tenantId).maybeSingle();
       if(settingsError)throw settingsError;
-      return response(req,{data:{customerUserId,account:account??{points_balance:0,lifetime_points_earned:0,lifetime_points_redeemed:0,eligible_spend_centavos:0,updated_at:null},settings:settings??{enabled:false,amount_threshold:null,points_awarded:0,redemption_enabled:false,redemption_points:0,redemption_amount:null}},requestId},200,requestId);
+      return response(req,{data:{customerId:customerUserId,account:account??{points_balance:0,lifetime_points_earned:0,lifetime_points_redeemed:0,eligible_spend_centavos:0,updated_at:null},settings:settings??{enabled:false,amount_threshold:null,points_awarded:0,redemption_enabled:false,redemption_points:0,redemption_amount:null}},requestId},200,requestId);
     }
     if(isFiscalProfileGet||isFiscalProfileSave){
       if(role!=="restaurant_owner")return response(req,err("FORBIDDEN","Only a restaurant owner can manage taxpayer fiscal configuration.",requestId),403,requestId);
