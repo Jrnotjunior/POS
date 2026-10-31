@@ -242,4 +242,22 @@ describe('POS API client', () => {
     })).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 502 });
   });
 
+  it('uses the same customer identity contract for search and loyalty balance', async () => {
+    const customer = { customerId: 'customer-user-1', displayName: 'Alex Customer', phoneLastFour: '4321' };
+    const balance = {
+      customerId: 'customer-user-1',
+      account: { points_balance: 10, lifetime_points_earned: 20, lifetime_points_redeemed: 10, eligible_spend_centavos: 12500, updated_at: '2026-10-30T10:00:00Z' },
+      settings: { enabled: true, amount_threshold: 50000, points_awarded: 5, redemption_enabled: true, redemption_points: 100, redemption_amount: 10000 },
+    };
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ data: [customer] }))
+      .mockResolvedValueOnce(jsonResponse({ data: balance }));
+    const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
+
+    await expect(client.searchLoyaltyCustomers('branch-1', 'Alex')).resolves.toEqual([customer]);
+    await expect(client.getLoyaltyBalance('branch-1', customer.customerId)).resolves.toEqual(balance);
+    expect(fetcher).toHaveBeenNthCalledWith(1, 'https://api.example.test/api/pos/v1/loyalty/customers?branchId=branch-1&q=Alex', expect.objectContaining({ method: 'GET' }));
+    expect(fetcher).toHaveBeenNthCalledWith(2, 'https://api.example.test/api/pos/v1/loyalty/balance?branchId=branch-1&customerId=customer-user-1', expect.objectContaining({ method: 'GET' }));
+  });
+
 });
