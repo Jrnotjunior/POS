@@ -80,8 +80,9 @@ describe('POS API client', () => {
     const sale = { id: 'sale-1', sale_number: 1, subtotal_centavos: 51000, total_centavos: 51000, payment_method: 'cash', payment_status: 'paid', cash_tendered_centavos: 51000, change_centavos: 0, created_at: '2026-10-30T10:00:00Z', items: [{ line_number: 1, item_name_snapshot: 'Burger', unit_price_centavos: 51000, quantity: 1, line_total_centavos: 51000 }] };
     const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: sale }, 201));
     const client = createPosApiClient({ baseUrl: 'https://api.example.test/', fetcher, getAccessToken: async () => 'test-access-token' });
-    const request = { branchId: 'branch-1', idempotencyKey: 'key-1', cashTenderedCentavos: 51000, items: [{ itemId: 'item-1', quantity: 1 }] };
+    const request = { branchId: 'branch-1', idempotencyKey: 'key-1', cashTenderedCentavos: 51000, customerName: 'Alex Customer', customerId: 'customer-user-1', items: [{ itemId: 'item-1', quantity: 1 }] };
     await expect(client.createCashSale(request)).resolves.toMatchObject({ id: 'sale-1', total_centavos: 51000 });
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({ customerName: 'Alex Customer', customerId: 'customer-user-1' });
     expect(fetcher).toHaveBeenCalledWith('https://api.example.test/api/pos/v1/sales', expect.objectContaining({
       method: 'POST',
       credentials: 'omit',
@@ -176,9 +177,11 @@ describe('POS API client', () => {
   it('rejects malformed cash sale line items before making a request', async () => {
     const fetcher = vi.fn();
     const client = createPosApiClient({ baseUrl: 'https://api.example.test', fetcher, getAccessToken: async () => 'test-access-token' });
-    const base = { branchId: 'branch-1', idempotencyKey: 'key-1', cashTenderedCentavos: 50000 };
+    const base = { branchId: 'branch-1', idempotencyKey: 'key-1', cashTenderedCentavos: 50000, customerName: null, customerId: null };
     await expect(client.createCashSale({ ...base, items: [{ itemId: 'item-1', quantity: 0 }] })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     await expect(client.createCashSale({ ...base, items: [{ itemId: 'item-1', quantity: 101 }] })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(client.createCashSale({ ...base, customerName: 'x'.repeat(121), items: [{ itemId: 'item-1', quantity: 1 }] })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(client.createCashSale({ ...base, customerId: '   ', items: [{ itemId: 'item-1', quantity: 1 }] })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     await expect(client.createCashSale({ ...base, items: Array.from({ length: 51 }, (_, index) => ({ itemId: `item-${index}`, quantity: 1 })) })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     expect(fetcher).not.toHaveBeenCalled();
   });
